@@ -1,0 +1,19 @@
+# Node dependencies & outputs
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Python caching & environments
+**/__pycache__/
+**/*.pyc
+.venv/
+env/
+
+# SQLite databases & lockfiles
+backend/database.db
+backend/database.db-shm
+backend/database.db-wal
+
+# OS files
+.DS_Store
+Thumbs.db

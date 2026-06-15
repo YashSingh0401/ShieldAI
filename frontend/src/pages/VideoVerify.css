@@ -1,0 +1,309 @@
+.video-verify-container {
+  max-width: 1300px;
+  margin: 0 auto;
+}
+
+.scanned-filename {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-glass);
+}
+
+/* Video Mockup Player */
+.video-player-mockup {
+  width: 100%;
+  background: #000000;
+  border-radius: 16px;
+  border: 1px solid var(--border-glass);
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+}
+
+.player-screen {
+  width: 100%;
+  aspect-ratio: 16/9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.player-film-icon {
+  color: rgba(255, 255, 255, 0.1);
+  z-index: 1;
+}
+
+.btn-player-action {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(0, 240, 255, 0.15);
+  border: 1.5px solid var(--cyan);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: var(--transition);
+  box-shadow: var(--cyan-glow);
+}
+
+.btn-player-action:hover {
+  background: rgba(0, 240, 255, 0.3);
+  transform: scale(1.1);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.6);
+}
+
+.player-status-badge {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--border-glass);
+  color: var(--cyan);
+  z-index: 5;
+}
+
+/* Scanning Cyberpunk Meshes */
+.scan-overlay-mesh {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.mesh-green {
+  background-image: 
+    linear-gradient(0deg, transparent 24%, var(--emerald) 25%, var(--emerald) 26%, transparent 27%, transparent 74%, var(--emerald) 75%, var(--emerald) 76%, transparent 77%),
+    linear-gradient(90deg, transparent 24%, var(--emerald) 25%, var(--emerald) 26%, transparent 27%, transparent 74%, var(--emerald) 75%, var(--emerald) 76%, transparent 77%);
+  background-size: 24px 24px;
+  animation: pulse-mesh 4s infinite alternate ease-in-out;
+}
+
+.mesh-red {
+  background-image: 
+    linear-gradient(0deg, transparent 24%, var(--rose) 25%, var(--rose) 26%, transparent 27%, transparent 74%, var(--rose) 75%, var(--rose) 76%, transparent 77%),
+    linear-gradient(90deg, transparent 24%, var(--rose) 25%, var(--rose) 26%, transparent 27%, transparent 74%, var(--rose) 75%, var(--rose) 76%, transparent 77%);
+  background-size: 24px 24px;
+  animation: pulse-mesh 3s infinite alternate ease-in-out;
+}
+
+@keyframes pulse-mesh {
+  0% { opacity: 0.1; }
+  100% { opacity: 0.22; }
+}
+
+/* Player Controls */
+.player-controls {
+  padding: 12px 18px;
+  background: rgba(0, 0, 0, 0.4);
+  border-top: 1px solid var(--border-glass);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.timeline-scrubber-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+
+.scrubber-progress {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--magenta));
+  width: 0%;
+  transition: width 10s linear;
+}
+
+.controls-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+/* Segment Blocks Integrity map */
+.timeline-integrity-section {
+  text-align: left;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  padding: 16px 20px;
+}
+
+.timeline-integrity-section h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.timeline-integrity-section .subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.timeline-grid-blocks {
+  display: flex;
+  gap: 6px;
+  margin: 16px 0;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.timeline-block {
+  flex: 1;
+  min-width: 14px;
+  height: 28px;
+  border-radius: 6px;
+  transition: var(--transition);
+  cursor: help;
+}
+
+.timeline-block.block-clean {
+  background: var(--emerald);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+}
+
+.timeline-block.block-clean:hover {
+  background: #0dfca6;
+  box-shadow: var(--emerald-glow);
+}
+
+.timeline-block.block-danger {
+  background: var(--rose);
+  border: 1px solid rgba(255, 42, 95, 0.2);
+}
+
+.timeline-block.block-danger:hover {
+  background: #ff4777;
+  box-shadow: var(--rose-glow);
+}
+
+.timeline-legend {
+  display: flex;
+  gap: 20px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend-dot.dot-green {
+  background-color: var(--emerald);
+  box-shadow: 0 0 6px var(--emerald);
+}
+
+.legend-dot.dot-red {
+  background-color: var(--rose);
+  box-shadow: 0 0 6px var(--rose);
+}
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  nav, .navbar, .sidebar, .demo-selector, .upload-column, .viewer-placeholder, .export-actions-group, .btn-player-action, .timeline-scrubber-track, .timeline-legend {
+    display: none !important;
+  }
+  .video-verify-container, .verify-layout {
+    display: block !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .visualizer-column {
+    width: 100% !important;
+    display: block !important;
+  }
+  .viewer-card {
+    border: 3px double #111 !important;
+    border-radius: 0 !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    padding: 30px !important;
+  }
+  .viewer-card::before {
+    content: "SHIELD.AI DEEPFAKE VIDEO AUDIT CERTIFICATE";
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 700;
+    text-align: center;
+    border-bottom: 2px solid #111;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+  }
+  .video-player-mockup {
+    background: #f9f9f9 !important;
+    border: 1px solid #bbb !important;
+  }
+  .player-screen {
+    background: #eaeaea !important;
+    color: black !important;
+  }
+  .player-film-icon {
+    color: #444 !important;
+  }
+  .timeline-block.block-clean {
+    background-color: var(--emerald) !important;
+  }
+  .timeline-block.block-danger {
+    background-color: var(--rose) !important;
+    box-shadow: none !important;
+  }
+  .anomalies-section {
+    background: #fff5f5 !important;
+    border: 1px dashed #e11d48 !important;
+  }
+  .anomalies-section h4 {
+    color: #e11d48 !important;
+  }
+  .anomalies-list li {
+    color: #111 !important;
+  }
+  .meta-row {
+    background: #fcfcfc !important;
+    border: 1px solid #ddd !important;
+  }
+  .meta-key {
+    color: #555 !important;
+  }
+  .meta-value {
+    color: #111 !important;
+  }
+}
+
