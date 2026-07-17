@@ -4,9 +4,12 @@ import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
 import ImageVerify from './pages/ImageVerify';
 import LinkScan from './pages/LinkScan';
-import Community from './pages/Community';
 import Login from './pages/Login';
+import Landing from './pages/Landing';
 import VideoVerify from './pages/VideoVerify';
+import AudioVerify from './pages/AudioVerify';
+import ScanHistory from './pages/ScanHistory';
+import { getStoredUser } from './api/client.js';
 import './App.css';
 
 const INITIAL_HISTORY = [
@@ -19,7 +22,7 @@ const INITIAL_HISTORY = [
 ];
 
 function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => getStoredUser());
   const [userHistory, setUserHistory] = useState(() => {
     const saved = localStorage.getItem('shield_user_history');
     if (saved !== null) {
@@ -39,12 +42,6 @@ function App() {
     localStorage.setItem('shield_user_history', JSON.stringify(userHistory));
   }, [userHistory]);
 
-  
-  const [videoEnabled, setVideoEnabled] = useState(() => {
-    const saved = localStorage.getItem('shield_video_bg_enabled');
-    return saved !== null ? JSON.parse(saved) : true;
-  });
-
   const isAuthenticated = !!user;
 
   const handleLogin = (userInfo) => {
@@ -53,14 +50,8 @@ function App() {
 
   const handleLogout = () => {
     setUser(null);
-  };
-
-  const handleToggleVideo = () => {
-    setVideoEnabled(prev => {
-      const nextVal = !prev;
-      localStorage.setItem('shield_video_bg_enabled', JSON.stringify(nextVal));
-      return nextVal;
-    });
+    localStorage.removeItem('shield_session_token');
+    localStorage.removeItem('shield_user');
   };
 
   const addHistoryItem = (item) => {
@@ -74,70 +65,72 @@ function App() {
 
   return (
     <Router>
-      {/* Global animated video background loop, conditionally rendered */}
-      {videoEnabled && (
-        <div className="video-bg-container">
-          <video autoPlay loop muted playsInline className="video-bg">
-            <source 
-              src="https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-blue-and-purple-dots-31830-large.mp4" 
-              type="video/mp4" 
-            />
-          </video>
-        </div>
-      )}
+      <Routes>
+        {/* Public Root Route is ALWAYS the Landing Page */}
+        <Route path="/" element={<Landing user={user} />} />
+        
+        {/* Public Login Route */}
+        <Route path="/login" element={<Login onLogin={handleLogin} user={user} />} />
 
-      {!isAuthenticated ? (
-        <Login 
-          onLogin={handleLogin} 
-          videoEnabled={videoEnabled} 
-          onToggleVideo={handleToggleVideo} 
+        {/* Protected Console Workspace Routes */}
+        <Route
+          path="/*"
+          element={
+            !isAuthenticated ? (
+              <Login onLogin={handleLogin} user={user} />
+            ) : (
+              <div className="app-container">
+                <Navbar onLogout={handleLogout} user={user} />
+                <main className="main-content">
+                  <Routes>
+                    <Route path="/dashboard" element={<Dashboard history={userHistory} />} />
+                    <Route 
+                      path="/verify-image" 
+                      element={
+                        <ImageVerify 
+                          onVerify={(info) => addHistoryItem({ type: 'image', ...info })} 
+                        />
+                      } 
+                    />
+                    <Route 
+                      path="/verify-video" 
+                      element={
+                        <VideoVerify 
+                          onVerify={(info) => addHistoryItem({ type: 'video', ...info })} 
+                        />
+                      } 
+                    />
+                    <Route 
+                      path="/scan-link" 
+                      element={
+                        <LinkScan 
+                          onScan={(info) => addHistoryItem({ type: 'url', ...info })} 
+                        />
+                      } 
+                    />
+                    <Route 
+                      path="/audio-verify" 
+                      element={
+                        <AudioVerify 
+                          onVerify={(info) => addHistoryItem({ type: 'audio', ...info })} 
+                        />
+                      } 
+                    />
+                    <Route 
+                      path="/history" 
+                      element={
+                        <ScanHistory />
+                      } 
+                    />
+                    {/* Fallback to dashboard */}
+                    <Route path="*" element={<Dashboard history={userHistory} />} />
+                  </Routes>
+                </main>
+              </div>
+            )
+          }
         />
-      ) : (
-        <div className="app-container">
-          {/* Ambient background glow elements */}
-          <div className="bg-glow-blob blob-cyan"></div>
-          <div className="bg-glow-blob blob-magenta"></div>
-          <div className="bg-glow-blob blob-purple"></div>
-          
-          <Navbar 
-            onLogout={handleLogout} 
-            user={user} 
-            videoEnabled={videoEnabled} 
-            onToggleVideo={handleToggleVideo} 
-          />
-          
-          <main className="main-content">
-            <Routes>
-              <Route path="/" element={<Dashboard history={userHistory} />} />
-              <Route 
-                path="/verify-image" 
-                element={
-                  <ImageVerify 
-                    onVerify={(info) => addHistoryItem({ type: 'image', ...info })} 
-                  />
-                } 
-              />
-              <Route 
-                path="/verify-video" 
-                element={
-                  <VideoVerify 
-                    onVerify={(info) => addHistoryItem({ type: 'video', ...info })} 
-                  />
-                } 
-              />
-              <Route 
-                path="/scan-link" 
-                element={
-                  <LinkScan 
-                    onScan={(info) => addHistoryItem({ type: 'url', ...info })} 
-                  />
-                } 
-              />
-              <Route path="/community" element={<Community />} />
-            </Routes>
-          </main>
-        </div>
-      )}
+      </Routes>
     </Router>
   );
 }

@@ -1,40 +1,62 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Mail, Lock, User, RefreshCw, Video, VideoOff } from 'lucide-react';
+import { api, setToken, setStoredUser } from '../api/client.js';
 import './Login.css';
 
-export default function Login({ onLogin, videoEnabled, onToggleVideo }) {
+export default function Login({ onLogin, user }) {
+  const navigate = useNavigate();
   const [isSignUp, setIsSignUp] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [loadingTitle, setLoadingTitle] = useState('Connecting Google Account');
+  const [loadingMessage, setLoadingMessage] = useState('Verifying your account details securely...');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [authError, setAuthError] = useState('');
 
-  const handleCredentialsSubmit = (e) => {
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
+
+  const handleCredentialsSubmit = async (e) => {
     e.preventDefault();
-    onLogin({ name: isSignUp ? name : email.split('@')[0], email });
+    setAuthError('');
+    setLoadingTitle('Signing In');
+    setLoadingMessage('Verifying your credentials securely...');
+    setGoogleLoading(true);
+    try {
+      const data = await api.post('/auth/login', { email, password });
+      setToken(data.token);
+      setStoredUser(data.user);
+      onLogin(data.user);
+      setGoogleLoading(false);
+      navigate('/dashboard');
+    } catch (err) {
+      console.error("Login failed:", err);
+      setAuthError(err.message || "Login failed. Please try again.");
+      setGoogleLoading(false);
+    }
   };
 
-  const handleCredentialResponse = (response) => {
+  const handleCredentialResponse = async (response) => {
+    setAuthError('');
+    setLoadingTitle('Connecting Google Account');
+    setLoadingMessage('Verifying your Google token securely...');
+    setGoogleLoading(true);
     try {
-      const token = response.credential;
-      // Lightweight client-side base64 JWT payload decoder
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      
-      const payload = JSON.parse(jsonPayload);
-      if (payload) {
-        onLogin({
-          name: payload.name || payload.given_name || "Google User",
-          email: payload.email,
-          avatar: payload.picture
-        });
-      }
+      const data = await api.post('/auth/google', { credential: response.credential });
+      setToken(data.token);
+      setStoredUser(data.user);
+      onLogin(data.user);
+      setGoogleLoading(false);
+      navigate('/dashboard');
     } catch (err) {
-      console.error("Failed to process Google OAuth JWT token:", err);
-      alert("Verification of Google accounts failed.");
+      console.error("Google authentication failed:", err);
+      setAuthError(err.message || "Verification of Google accounts failed.");
+      setGoogleLoading(false);
     }
   };
 
@@ -81,24 +103,17 @@ export default function Login({ onLogin, videoEnabled, onToggleVideo }) {
 
   return (
     <div className="login-page-container">
-
-
-      {/* Background glow blobs */}
-      <div className="bg-glow-blob blob-cyan"></div>
-      <div className="bg-glow-blob blob-magenta"></div>
-      
-      <div className="glass-card login-card animate-fade-in">
+      <div className="login-card animate-fade-in">
         <div className="login-header">
           <div className="login-logo">
-            <ShieldCheck size={36} className="logo-icon" />
-            <h2>SHIELD<span className="brand-highlight">.AI</span></h2>
+            <ShieldCheck size={32} className="logo-icon" />
+            <h1 className="login-title">Shield<span className="brand-highlight">.AI</span></h1>
           </div>
           <p className="login-subtitle">
             {isSignUp ? 'Create your secure account to start audits' : 'Sign in to access your security control panel'}
           </p>
         </div>
 
-        {/* Google Sign In Button Container */}
         <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
           <div id="google-signin-btn-div"></div>
         </div>
@@ -107,7 +122,6 @@ export default function Login({ onLogin, videoEnabled, onToggleVideo }) {
           <span>or continue with email</span>
         </div>
 
-        {/* Credentials Form */}
         <form onSubmit={handleCredentialsSubmit} className="login-form">
           {isSignUp && (
             <div className="form-group">
@@ -156,8 +170,14 @@ export default function Login({ onLogin, videoEnabled, onToggleVideo }) {
             </div>
           </div>
 
-          <button type="submit" className="btn btn-primary login-submit-btn">
-            {isSignUp ? 'Sign Up' : 'Log In'}
+          {authError && (
+            <div style={{ color: 'var(--rose)', fontSize: '0.85rem', textAlign: 'center', marginBottom: '12px' }}>
+              {authError}
+            </div>
+          )}
+
+          <button type="submit" className="btn btn-primary login-submit-btn" disabled={googleLoading}>
+            {googleLoading ? 'Signing in...' : (isSignUp ? 'Sign Up' : 'Log In')}
           </button>
         </form>
 
@@ -171,13 +191,12 @@ export default function Login({ onLogin, videoEnabled, onToggleVideo }) {
         </div>
       </div>
 
-      {/* Simulated Google Popup Loading Overlay */}
       {googleLoading && (
         <div className="google-oauth-overlay">
-          <div className="glass-card oauth-popup">
-            <div className="oauth-spinner"></div>
-            <h4>Connecting Google Account</h4>
-            <p>Verifying Google OAuth 2.0 signatures and importing account details securely...</p>
+          <div className="oauth-popup">
+            <div className="spinner"></div>
+            <h4>{loadingTitle}</h4>
+            <p>{loadingMessage}</p>
           </div>
         </div>
       )}

@@ -1,28 +1,157 @@
 .video-verify-container {
-  max-width: 1300px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
-.scanned-filename {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  background: rgba(255, 255, 255, 0.03);
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border-glass);
+.verify-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 24px;
+  align-items: stretch;
 }
 
-/* Video Mockup Player */
-.video-player-mockup {
-  width: 100%;
-  background: #000000;
-  border-radius: 16px;
-  border: 1px solid var(--border-glass);
-  overflow: hidden;
-  box-shadow: var(--card-shadow);
+.upload-column,
+.visualizer-column {
   display: flex;
   flex-direction: column;
+  height: 100%;
+}
+
+@media (max-width: 1100px) {
+  .verify-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+}
+
+/* Professional File Dropzone */
+.drop-zone {
+  border: 2px dashed rgba(79, 70, 229, 0.25);
+  padding: 40px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition);
+  margin-bottom: 0px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  position: relative;
+  overflow: hidden;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 320px;
+}
+
+.drop-zone.active,
+.drop-zone:hover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  box-shadow: var(--shadow-md);
+}
+
+.drop-zone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 3;
+}
+
+.upload-icon {
+  color: var(--text-secondary);
+  transition: var(--transition);
+}
+
+.drop-zone:hover .upload-icon {
+  color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.drop-zone h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.drop-zone p {
+  font-size: 0.825rem;
+  color: var(--text-secondary);
+}
+
+.file-input-wrapper {
+  margin-top: 8px;
+}
+
+/* High-Tech Visualizer Placeholder styling */
+.viewer-placeholder {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 32px;
+  height: 100%;
+  min-height: 320px;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.02) 0%, rgba(139, 92, 246, 0.02) 100%), var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.viewer-placeholder .placeholder-icon {
+  color: var(--accent);
+  margin-bottom: 16px;
+  opacity: 0.85;
+  animation: pulseIcon 3s ease-in-out infinite;
+}
+
+.viewer-placeholder h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 0;
+  margin-bottom: 8px;
+  letter-spacing: -0.3px;
+}
+
+.viewer-placeholder p {
+  font-size: 0.825rem;
+  color: var(--text-secondary);
+  max-width: 320px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+@keyframes pulseIcon {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.06); opacity: 1; filter: drop-shadow(0 0 10px rgba(79, 70, 229, 0.2)); }
+}
+
+.scanned-filename {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  background: var(--bg-input);
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.video-player-mockup {
+  width: 100%;
+  background: var(--bg-input);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
 }
 
 .player-screen {
@@ -33,20 +162,22 @@
   justify-content: center;
   position: relative;
   overflow: hidden;
+  background: #090d16;
 }
 
 .player-film-icon {
-  color: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  opacity: 0.15;
   z-index: 1;
 }
 
 .btn-player-action {
   position: absolute;
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  background: rgba(0, 240, 255, 0.15);
-  border: 1.5px solid var(--cyan);
+  background: var(--accent);
+  border: 1px solid var(--accent-dark);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -54,31 +185,40 @@
   cursor: pointer;
   z-index: 10;
   transition: var(--transition);
-  box-shadow: var(--cyan-glow);
 }
 
 .btn-player-action:hover {
-  background: rgba(0, 240, 255, 0.3);
-  transform: scale(1.1);
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.6);
+  background: var(--accent-dark);
+  transform: scale(1.05);
 }
 
 .player-status-badge {
   position: absolute;
-  top: 16px;
-  left: 16px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  background: rgba(0, 0, 0, 0.7);
-  border: 1px solid var(--border-glass);
-  color: var(--cyan);
+  top: 12px;
+  left: 12px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: rgba(15, 23, 42, 0.8);
+  color: #ffffff;
   z-index: 5;
+  border: 1px solid var(--border);
+  text-transform: uppercase;
 }
 
-/* Scanning Cyberpunk Meshes */
+.real-video-player {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  background: #000;
+}
+
 .scan-overlay-mesh {
   position: absolute;
   top: 0;
@@ -92,39 +232,31 @@
 
 .mesh-green {
   background-image: 
-    linear-gradient(0deg, transparent 24%, var(--emerald) 25%, var(--emerald) 26%, transparent 27%, transparent 74%, var(--emerald) 75%, var(--emerald) 76%, transparent 77%),
-    linear-gradient(90deg, transparent 24%, var(--emerald) 25%, var(--emerald) 26%, transparent 27%, transparent 74%, var(--emerald) 75%, var(--emerald) 76%, transparent 77%);
+    linear-gradient(0deg, transparent 24%, rgba(16, 185, 129, 0.1) 25%, rgba(16, 185, 129, 0.1) 26%, transparent 27%, transparent 74%, rgba(16, 185, 129, 0.1) 75%, rgba(16, 185, 129, 0.1) 76%, transparent 77%),
+    linear-gradient(90deg, transparent 24%, rgba(16, 185, 129, 0.1) 25%, rgba(16, 185, 129, 0.1) 26%, transparent 27%, transparent 74%, rgba(16, 185, 129, 0.1) 75%, rgba(16, 185, 129, 0.1) 76%, transparent 77%);
   background-size: 24px 24px;
-  animation: pulse-mesh 4s infinite alternate ease-in-out;
 }
 
 .mesh-red {
   background-image: 
-    linear-gradient(0deg, transparent 24%, var(--rose) 25%, var(--rose) 26%, transparent 27%, transparent 74%, var(--rose) 75%, var(--rose) 76%, transparent 77%),
-    linear-gradient(90deg, transparent 24%, var(--rose) 25%, var(--rose) 26%, transparent 27%, transparent 74%, var(--rose) 75%, var(--rose) 76%, transparent 77%);
+    linear-gradient(0deg, transparent 24%, rgba(239, 68, 68, 0.1) 25%, rgba(239, 68, 68, 0.1) 26%, transparent 27%, transparent 74%, rgba(239, 68, 68, 0.1) 75%, rgba(239, 68, 68, 0.1) 76%, transparent 77%),
+    linear-gradient(90deg, transparent 24%, rgba(239, 68, 68, 0.1) 25%, rgba(239, 68, 68, 0.1) 26%, transparent 27%, transparent 74%, rgba(239, 68, 68, 0.1) 75%, rgba(239, 68, 68, 0.1) 76%, transparent 77%);
   background-size: 24px 24px;
-  animation: pulse-mesh 3s infinite alternate ease-in-out;
 }
 
-@keyframes pulse-mesh {
-  0% { opacity: 0.1; }
-  100% { opacity: 0.22; }
-}
-
-/* Player Controls */
 .player-controls {
-  padding: 12px 18px;
-  background: rgba(0, 0, 0, 0.4);
-  border-top: 1px solid var(--border-glass);
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .timeline-scrubber-track {
   width: 100%;
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-muted);
   border-radius: 2px;
   position: relative;
   overflow: hidden;
@@ -132,9 +264,9 @@
 
 .scrubber-progress {
   height: 100%;
-  background: linear-gradient(90deg, var(--cyan), var(--magenta));
+  background: var(--accent-gradient);
   width: 0%;
-  transition: width 10s linear;
+  transition: width 12s linear;
 }
 
 .controls-row {
@@ -142,168 +274,99 @@
   justify-content: space-between;
   font-size: 0.75rem;
   color: var(--text-secondary);
+  font-weight: 500;
   font-family: var(--font-mono);
 }
 
-/* Segment Blocks Integrity map */
-.timeline-integrity-section {
+.timeline-grid-wrapper {
+  margin-bottom: 24px;
+}
+
+.timeline-grid-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
   text-align: left;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid var(--border-glass);
-  border-radius: 16px;
-  padding: 16px 20px;
 }
 
-.timeline-integrity-section h4 {
-  font-size: 0.95rem;
-  font-weight: 700;
-  margin-bottom: 2px;
-}
-
-.timeline-integrity-section .subtitle {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.timeline-grid-blocks {
-  display: flex;
-  gap: 6px;
-  margin: 16px 0;
-  overflow-x: auto;
-  padding: 4px 0;
+.timeline-blocks {
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  gap: 4px;
 }
 
 .timeline-block {
-  flex: 1;
-  min-width: 14px;
-  height: 28px;
-  border-radius: 6px;
+  aspect-ratio: 1;
+  background: var(--bg-muted);
+  border-radius: var(--radius-xs);
   transition: var(--transition);
-  cursor: help;
+  border: 1px solid var(--border);
 }
 
-.timeline-block.block-clean {
-  background: var(--emerald);
-  border: 1px solid rgba(0, 255, 136, 0.2);
+.timeline-block.completed-success {
+  background: var(--success);
+  border-color: var(--success);
 }
 
-.timeline-block.block-clean:hover {
-  background: #0dfca6;
-  box-shadow: var(--emerald-glow);
+.timeline-block.completed-danger {
+  background: var(--danger);
+  border-color: var(--danger);
 }
 
-.timeline-block.block-danger {
-  background: var(--rose);
-  border: 1px solid rgba(255, 42, 95, 0.2);
+.timeline-block.scanned {
+  transform: scale(0.95);
 }
 
-.timeline-block.block-danger:hover {
-  background: #ff4777;
-  box-shadow: var(--rose-glow);
-}
-
-.timeline-legend {
+.anomalies-list {
   display: flex;
-  gap: 20px;
-  font-size: 0.75rem;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.anomaly-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.anomaly-row:last-child {
+  border-bottom: none;
+}
+
+.anomaly-time {
+  font-family: var(--font-mono);
+  font-weight: 600;
   color: var(--text-secondary);
 }
 
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.anomaly-label {
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.anomaly-badge {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
-.legend-dot.dot-green {
-  background-color: var(--emerald);
-  box-shadow: 0 0 6px var(--emerald);
+.anomaly-badge.critical {
+  background: var(--danger-light);
+  color: var(--danger);
 }
 
-.legend-dot.dot-red {
-  background-color: var(--rose);
-  box-shadow: 0 0 6px var(--rose);
+.anomaly-badge.warning {
+  background: var(--warning-light);
+  color: var(--warning);
 }
-
-@media print {
-  body {
-    background: white !important;
-    color: black !important;
-  }
-  nav, .navbar, .sidebar, .demo-selector, .upload-column, .viewer-placeholder, .export-actions-group, .btn-player-action, .timeline-scrubber-track, .timeline-legend {
-    display: none !important;
-  }
-  .video-verify-container, .verify-layout {
-    display: block !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  .visualizer-column {
-    width: 100% !important;
-    display: block !important;
-  }
-  .viewer-card {
-    border: 3px double #111 !important;
-    border-radius: 0 !important;
-    background: white !important;
-    color: black !important;
-    box-shadow: none !important;
-    padding: 30px !important;
-  }
-  .viewer-card::before {
-    content: "SHIELD.AI DEEPFAKE VIDEO AUDIT CERTIFICATE";
-    display: block;
-    font-size: 1.4rem;
-    font-weight: 700;
-    text-align: center;
-    border-bottom: 2px solid #111;
-    padding-bottom: 10px;
-    margin-bottom: 20px;
-  }
-  .video-player-mockup {
-    background: #f9f9f9 !important;
-    border: 1px solid #bbb !important;
-  }
-  .player-screen {
-    background: #eaeaea !important;
-    color: black !important;
-  }
-  .player-film-icon {
-    color: #444 !important;
-  }
-  .timeline-block.block-clean {
-    background-color: var(--emerald) !important;
-  }
-  .timeline-block.block-danger {
-    background-color: var(--rose) !important;
-    box-shadow: none !important;
-  }
-  .anomalies-section {
-    background: #fff5f5 !important;
-    border: 1px dashed #e11d48 !important;
-  }
-  .anomalies-section h4 {
-    color: #e11d48 !important;
-  }
-  .anomalies-list li {
-    color: #111 !important;
-  }
-  .meta-row {
-    background: #fcfcfc !important;
-    border: 1px solid #ddd !important;
-  }
-  .meta-key {
-    color: #555 !important;
-  }
-  .meta-value {
-    color: #111 !important;
-  }
-}
-

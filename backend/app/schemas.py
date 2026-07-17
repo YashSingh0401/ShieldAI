@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict
 from pydantic import BaseModel, Field, field_validator
 
 class ScamReportBase(BaseModel):
@@ -51,3 +51,43 @@ class ScamCommentResponse(ScamCommentBase):
     model_config = {
         "from_attributes": True
     }
+
+
+class GoogleAuthRequest(BaseModel):
+    credential: str = Field(..., description="Google OAuth credential JWT token")
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., description="User email address")
+    password: str = Field(..., description="User password")
+
+
+class ScanHistoryResponse(BaseModel):
+    id: int
+    scan_type: str
+    target: str
+    risk_score: float
+    status: str
+    timestamp: datetime
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class AudioVerifyResponse(BaseModel):
+    is_clean: bool
+    filename: str
+    risk_score: float
+    risk_level: str
+    pitch_variation: float
+    pitch_status: str
+    sample_rate: int
+    sample_rate_anomaly: bool
+    voice_clone_probability: float
+    compression_warnings: list[str]
+    anomalies: list[str]
+
+
+class AuthResponse(BaseModel):
+    token: str = Field(..., description="Session JWT token")
+    user: Dict[str, str] = Field(..., description="User info (name, email, avatar)")

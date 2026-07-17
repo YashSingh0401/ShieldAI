@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { Upload, Film, ShieldAlert, CheckCircle, ChevronRight, Sliders, Play, RotateCw } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Upload, Film, ShieldAlert, CheckCircle, ChevronRight, Sliders, Play, RotateCw, Pause } from 'lucide-react';
+import { api } from '../api/client.js';
+import CertificateModal from '../components/CertificateModal';
 import './VideoVerify.css';
 
 export default function VideoVerify({ onVerify }) {
@@ -8,6 +10,9 @@ export default function VideoVerify({ onVerify }) {
   const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [showCert, setShowCert] = useState(false);
+  const videoRef = useRef(null);
 
   const exportJSON = () => {
     if (!result) return;
@@ -21,7 +26,7 @@ export default function VideoVerify({ onVerify }) {
   };
 
   const exportPDF = () => {
-    window.print();
+    setShowCert(true);
   };
 
   const mockVerify = (isClean) => {
@@ -29,6 +34,8 @@ export default function VideoVerify({ onVerify }) {
     setLoadingStep(0);
     setResult(null);
     setIsPlaying(false);
+    if (videoUrl) URL.revokeObjectURL(videoUrl);
+    setVideoUrl(null);
 
     // Simulate multi-stage neural/compression scan timeline
     setTimeout(() => {
@@ -120,8 +127,10 @@ export default function VideoVerify({ onVerify }) {
     setResult(null);
     setIsPlaying(false);
 
-    const formData = new FormData();
-    formData.append("file", file);
+    // Create preview URL for uploaded video
+    if (videoUrl) URL.revokeObjectURL(videoUrl);
+    const url = URL.createObjectURL(file);
+    setVideoUrl(url);
 
     const steps = [
       setTimeout(() => setLoadingStep(1), 300),
@@ -130,39 +139,36 @@ export default function VideoVerify({ onVerify }) {
     ];
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/verify/video", {
-        method: "POST",
-        body: formData
-      });
-
+      const data = await api.upload('/verify/video', file);
       steps.forEach(clearTimeout);
       setLoadingStep(3);
+      setResult(data);
+      setLoading(false);
 
-      if (res.ok) {
-        const data = await res.json();
-        setResult(data);
-        setLoading(false);
-
-        if (onVerify) {
-          onVerify({
-            target: data.filename,
-            result: data.risk_level,
-            risk: data.risk_score,
-            status: data.is_clean ? 'success' : 'danger'
-          });
-        }
-      } else {
-        const errorText = await res.text();
-        console.error("API error:", errorText);
-        alert("Deepfake audit failed: Server responded with an error.");
-        setLoading(false);
+      if (onVerify) {
+        onVerify({
+          target: data.filename,
+          result: data.risk_level,
+          risk: data.risk_score,
+          status: data.is_clean ? 'success' : 'danger'
+        });
       }
     } catch (err) {
       steps.forEach(clearTimeout);
       console.error("Video verification failed:", err);
-      alert("Network error: Could not connect to the security backend.");
+      alert(err.message || "Network error: Could not connect to the security backend.");
       setLoading(false);
     }
+  };
+
+  const toggleVideoPlay = () => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+    } else {
+      videoRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
   };
 
   const handleDrag = (e) => {
@@ -301,17 +307,31 @@ export default function VideoVerify({ onVerify }) {
                 <span className="scanned-filename">{result.filename}</span>
               </div>
 
-              {/* Video Mockup Player */}
+              {/* Video Player */}
               <div className="video-player-mockup">
                 <div className="player-screen">
-                  {/* Glowing Overlay Grid representation */}
-                  <div className={`scan-overlay-mesh ${result.is_clean ? 'mesh-green' : 'mesh-red'}`}></div>
-                  <Film size={64} className="player-film-icon" />
-                  <button onClick={() => setIsPlaying(!isPlaying)} className="btn-player-action">
-                    {isPlaying ? <RotateCw size={24} /> : <Play size={24} />}
+                  {videoUrl ? (
+                    <>
+                      <video 
+                        ref={videoRef}
+                        src={videoUrl}
+                        className="real-video-player"
+                        onEnded={() => setIsPlaying(false)}
+                        controls
+                      />
+                      <div className={`scan-overlay-mesh ${result.is_clean ? 'mesh-green' : 'mesh-red'}`}></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={`scan-overlay-mesh ${result.is_clean ? 'mesh-green' : 'mesh-red'}`}></div>
+                      <Film size={64} className="player-film-icon" />
+                    </>
+                  )}
+                  <button onClick={toggleVideoPlay} className="btn-player-action">
+                    {isPlaying ? <Pause size={24} /> : <Play size={24} />}
                   </button>
                   <span className="player-status-badge">
-                    {isPlaying ? 'RUNNING SCAN LOOP' : 'READY TO ANALYZE'}
+                    {isPlaying ? 'PLAYING' : 'READY'}
                   </span>
                 </div>
                 <div className="player-controls">
@@ -396,6 +416,13 @@ export default function VideoVerify({ onVerify }) {
         </div>
 
       </div>
+      {showCert && result && (
+        <CertificateModal
+          result={result}
+          scanType="video"
+          onClose={() => setShowCert(false)}
+        />
+      )}
     </div>
   );
 }

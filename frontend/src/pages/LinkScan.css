@@ -1,54 +1,51 @@
 .link-scan-container {
-  max-width: 1300px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
 .samples-panel {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 24px;
   flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 14px;
 }
 
 .samples-label {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
   font-weight: 500;
 }
 
-.sample-warning:hover {
-  border-color: var(--amber) !important;
-  color: var(--amber) !important;
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
-}
-
-.sample-danger:hover {
-  border-color: var(--rose) !important;
-  color: var(--rose) !important;
-  box-shadow: 0 0 10px rgba(244, 63, 94, 0.2);
-}
-
 .scan-layout {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 32px;
-  align-items: start;
+  grid-template-columns: 1.25fr 0.8fr;
+  gap: 24px;
+  align-items: stretch;
 }
 
-@media (max-width: 1024px) {
+.scan-panel,
+.dial-panel-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+@media (max-width: 1100px) {
   .scan-layout {
     grid-template-columns: 1fr;
-    gap: 24px;
+    gap: 20px;
+    align-items: start;
   }
 }
 
-/* Search Wrapper styling */
 .scan-panel {
   padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .search-wrapper {
@@ -60,434 +57,297 @@
 
 .input-globe-icon {
   position: absolute;
-  left: 16px;
+  left: 14px;
   color: var(--text-secondary);
+  z-index: 5;
 }
 
 .scan-input {
-  padding-left: 48px;
-  padding-right: 140px; /* Leave space for button */
-  height: 52px;
+  padding-left: 42px;
+  padding-right: 120px;
+  height: 44px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9rem;
 }
 
 .scan-submit {
   position: absolute;
-  right: 6px;
-  height: 40px;
-  font-size: 0.875rem;
-  padding: 0 18px;
+  right: 5px;
+  height: 34px;
+  font-size: 0.825rem;
+  padding: 0 14px;
+  border-radius: var(--radius-xs);
 }
 
-.btn-spinner {
-  animation: spin 1s linear infinite;
-}
-
-/* Loading State */
 .scan-loading {
-  padding: 40px 20px;
+  padding: 32px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   text-align: center;
 }
 
 .scan-loading h3 {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .scan-loading p {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  max-width: 420px;
+  font-size: 0.825rem;
+  color: var(--text-secondary);
+  max-width: 400px;
   line-height: 1.5;
 }
 
-/* Placeholder Instructions */
 .scan-instructions {
-  padding: 60px 40px;
+  padding: 48px 32px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   color: var(--text-secondary);
 }
 
 .inst-icon {
   color: var(--text-muted);
-  opacity: 0.6;
+  opacity: 0.4;
 }
 
 .scan-instructions h4 {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   color: var(--text-primary);
   font-weight: 600;
 }
 
 .scan-instructions p {
-  font-size: 0.875rem;
+  font-size: 0.825rem;
   max-width: 400px;
   line-height: 1.5;
   color: var(--text-secondary);
 }
 
-/* Details Section */
 .scan-details {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
+}
+
+.link-telemetry-header {
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 12px;
   text-align: left;
 }
 
-.details-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  border-bottom: 1px solid var(--border-glass);
-  padding-bottom: 16px;
-}
-
-.details-header h4 {
-  font-size: 1.1rem;
+.telemetry-url {
+  font-size: 0.95rem;
   font-weight: 600;
-}
-
-.url-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-glass);
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  color: var(--cyan);
+  color: var(--text-primary);
+  word-break: break-all;
   font-family: var(--font-mono);
 }
 
-.heuristics-list {
+.link-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 600px) {
+  .link-telemetry-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.telemetry-item {
+  background: var(--bg-widget-subtle);
+  border: 1px solid var(--border);
+  padding: 14px;
+  border-radius: var(--radius-sm);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
+  text-align: left;
 }
 
-.heuristic-flag-item {
-  display: flex;
-  gap: 16px;
-  padding: 14px 16px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  align-items: flex-start;
-}
-
-.flag-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 6px;
-  flex-shrink: 0;
-}
-
-.flag-text {
-  font-size: 0.875rem;
-  line-height: 1.4;
-  color: var(--text-primary);
-}
-
-/* Flag severity styles */
-.flag-danger {
-  background: rgba(244, 63, 94, 0.02);
-  border-color: rgba(244, 63, 94, 0.15);
-}
-.flag-danger .flag-dot {
-  background-color: var(--rose);
-  box-shadow: 0 0 8px var(--rose);
-}
-
-.flag-warning {
-  background: rgba(245, 158, 11, 0.02);
-  border-color: rgba(245, 158, 11, 0.15);
-}
-.flag-warning .flag-dot {
-  background-color: var(--amber);
-  box-shadow: 0 0 8px var(--amber);
-}
-
-.flag-info {
-  background: rgba(0, 240, 255, 0.02);
-  border-color: rgba(0, 240, 255, 0.15);
-}
-.flag-info .flag-dot {
-  background-color: var(--cyan);
-  box-shadow: 0 0 8px var(--cyan);
-}
-
-.flag-success {
-  background: rgba(16, 185, 129, 0.02);
-  border-color: rgba(16, 185, 129, 0.15);
-}
-.flag-success .flag-dot {
-  background-color: var(--emerald);
-  box-shadow: 0 0 8px var(--emerald);
-}
-
-/* Entropy Meter Box */
-.entropy-info-box {
-  background: rgba(0, 0, 0, 0.15);
-  border: 1px solid var(--border-glass);
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.entropy-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.875rem;
-  font-weight: 500;
+.telemetry-label {
+  font-size: 0.725rem;
+  font-weight: 600;
   color: var(--text-secondary);
+  text-transform: uppercase;
 }
 
-.entropy-value {
-  color: var(--text-primary);
-  font-family: var(--font-mono);
+.telemetry-value {
+  font-size: 1rem;
   font-weight: 700;
+  color: var(--text-primary);
 }
 
-.entropy-meter-track {
-  height: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.entropy-meter-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.entropy-explainer {
-  font-size: 0.75rem;
+.telemetry-desc {
+  font-size: 0.7rem;
   color: var(--text-muted);
-  line-height: 1.4;
 }
 
-/* Dial score panel styling */
-.dial-card {
+/* Gauge panel visual design */
+.gauge-panel {
   padding: 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  justify-content: center;
+  gap: 20px;
 }
 
-.dial-header h3 {
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-
-.dial-display {
+.risk-dial-container {
   position: relative;
-  width: 160px;
-  height: 160px;
+  width: 140px;
+  height: 140px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.svg-dial {
-  position: absolute;
-  top: 0;
-  left: 0;
+.risk-svg {
+  transform: rotate(-90deg);
 }
 
-.dial-track {
-  stroke: rgba(255, 255, 255, 0.03);
+.risk-circle-bg {
   fill: none;
+  stroke: var(--bg-muted-strong);
 }
 
-.dial-progress {
+.risk-circle-fill {
   fill: none;
   stroke-linecap: round;
-  transition: stroke-dashoffset 1s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: stroke-dashoffset 0.8s ease;
 }
 
-.path-safe {
-  stroke: var(--emerald);
-  filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.4));
+.risk-circle-fill.success {
+  stroke: var(--success);
 }
 
-.path-suspicious {
-  stroke: var(--amber);
-  filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.4));
+.risk-circle-fill.warning {
+  stroke: var(--warning);
 }
 
-.path-phishing {
-  stroke: var(--rose);
-  filter: drop-shadow(0 0 6px rgba(244, 63, 94, 0.4));
+.risk-circle-fill.danger {
+  stroke: var(--danger);
 }
 
-.dial-text-overlay {
+.risk-overlay-text {
+  position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  z-index: 10;
 }
 
-.dial-score-num {
-  font-size: 2.2rem;
-  font-weight: 800;
+.risk-score {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
   color: var(--text-primary);
-  line-height: 1;
-  letter-spacing: -1px;
 }
 
-.dial-score-label {
+.risk-label {
   font-size: 0.65rem;
-  color: var(--text-muted);
   font-weight: 600;
-  letter-spacing: 1.2px;
-  margin-top: 4px;
-}
-
-.dial-status-info {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.status-badge-glow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border: 1px solid transparent;
-}
-
-.bg-safe {
-  background: rgba(16, 185, 129, 0.1);
-  color: var(--emerald);
-  border-color: rgba(16, 185, 129, 0.2);
-  box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);
-}
-
-.bg-suspicious {
-  background: rgba(245, 158, 11, 0.1);
-  color: var(--amber);
-  border-color: rgba(245, 158, 11, 0.2);
-  box-shadow: 0 0 15px rgba(245, 158, 11, 0.1);
-}
-
-.bg-phishing {
-  background: rgba(244, 63, 94, 0.1);
-  color: var(--rose);
-  border-color: rgba(244, 63, 94, 0.2);
-  box-shadow: 0 0 15px rgba(244, 63, 94, 0.1);
-}
-
-.status-brief {
-  font-size: 0.85rem;
   color: var(--text-secondary);
-  line-height: 1.5;
-  text-align: center;
+  text-transform: uppercase;
 }
 
-/* Dial Placeholder Panel */
+.risk-classification-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.risk-classification-text.success {
+  color: var(--success);
+}
+
+.risk-classification-text.warning {
+  color: var(--warning);
+}
+
+.risk-classification-text.danger {
+  color: var(--danger);
+}
+
+.entropy-progress-container {
+  width: 100%;
+  text-align: left;
+}
+
+.entropy-row-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.entropy-track {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-muted-strong);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.entropy-fill {
+  height: 100%;
+  background: var(--accent-gradient);
+  width: 0%;
+  transition: width 0.8s ease;
+}
+
+/* High-Tech Dial Visualizer Placeholder */
 .dial-placeholder {
-  min-height: 320px;
+  flex-grow: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px;
-  gap: 16px;
   text-align: center;
-  color: var(--text-secondary);
+  padding: 40px 32px;
+  height: 100%;
+  min-height: 320px;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.02) 0%, rgba(139, 92, 246, 0.02) 100%), var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 .dial-placeholder-icon {
-  color: var(--text-muted);
-  opacity: 0.6;
+  color: var(--accent);
+  margin-bottom: 16px;
+  opacity: 0.85;
+  animation: pulseIcon 3s ease-in-out infinite;
 }
 
 .dial-placeholder h3 {
-  font-size: 1.15rem;
+  font-size: 1.2rem;
+  font-weight: 700;
   color: var(--text-primary);
-  font-weight: 600;
+  margin-top: 0;
+  margin-bottom: 8px;
+  letter-spacing: -0.3px;
 }
 
 .dial-placeholder p {
-  font-size: 0.85rem;
-  line-height: 1.4;
-  color: var(--text-muted);
-  max-width: 200px;
+  font-size: 0.825rem;
+  color: var(--text-secondary);
+  max-width: 240px;
+  line-height: 1.6;
+  margin: 0;
 }
 
-@media print {
-  body {
-    background: white !important;
-    color: black !important;
-  }
-  nav, .navbar, .sidebar, .samples-panel, .scan-panel, .dial-placeholder, .export-actions-group {
-    display: none !important;
-  }
-  .link-scan-container, .scan-layout {
-    display: block !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  .dial-panel-column {
-    width: 100% !important;
-    display: block !important;
-  }
-  .dial-card {
-    border: 3px double #111 !important;
-    border-radius: 0 !important;
-    background: white !important;
-    color: black !important;
-    box-shadow: none !important;
-    padding: 30px !important;
-  }
-  .dial-card::before {
-    content: "SHIELD.AI LINK SECURITY CERTIFICATE";
-    display: block;
-    font-size: 1.4rem;
-    font-weight: 700;
-    text-align: center;
-    border-bottom: 2px solid #111;
-    padding-bottom: 10px;
-    margin-bottom: 20px;
-  }
-  .dial-track {
-    stroke: #eee !important;
-  }
-  .dial-score-num {
-    color: black !important;
-  }
-  .status-badge-glow {
-    background: #f0f0f0 !important;
-    border: 1px solid #ccc !important;
-    color: black !important;
-    box-shadow: none !important;
-  }
-  .status-brief {
-    color: #333 !important;
-  }
+@keyframes pulseIcon {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.06); opacity: 1; filter: drop-shadow(0 0 10px rgba(79, 70, 229, 0.2)); }
 }
-

@@ -2,7 +2,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = "sqlite:///./database.db"
+from .config import DATABASE_URL
 
 # Create engine with SQLite multi-thread checking bypassed
 engine = create_engine(

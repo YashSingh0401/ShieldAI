@@ -1,0 +1,230 @@
+.scan-history-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.history-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.search-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search-input {
+  padding-left: 36px !important;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-icon {
+  color: var(--text-muted);
+}
+
+.filter-select {
+  min-width: 140px;
+}
+
+.history-table-wrapper {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.history-table-container {
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.history-table thead {
+  background: var(--bg-widget-subtle);
+  border-bottom: 1px solid var(--border);
+}
+
+.history-table th {
+  padding: 14px 18px;
+  font-size: 0.775rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.history-table tbody tr {
+  border-bottom: 1px solid var(--border-light);
+  transition: var(--transition);
+}
+
+.history-table tbody tr:hover {
+  background: var(--accent-subtle);
+}
+
+.history-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.history-table td {
+  padding: 14px 18px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.td-timestamp .timestamp-text {
+  font-family: var(--font-mono);
+  font-size: 0.775rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.775rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.td-target .target-text {
+  display: block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-primary);
+}
+
+.risk-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.775rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.risk-badge.low {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.risk-badge.medium {
+  background: var(--warning-light);
+  color: var(--warning);
+}
+
+.risk-badge.high {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-tag.status-success {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.status-tag.status-danger {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.history-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 80px 24px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 80px 24px;
+  gap: 12px;
+}
+
+.history-empty .empty-icon {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.history-empty h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.history-empty p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .history-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-group {
+    flex: 1;
+  }
+
+  .history-table td,
+  .history-table th {
+    padding: 10px 12px;
+  }
+
+  .td-target .target-text {
+    max-width: 160px;
+  }
+}

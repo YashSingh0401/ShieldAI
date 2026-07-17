@@ -34,16 +34,32 @@ def perform_ela(image_bytes: bytes, quality: int = 90, scale: int = 15) -> tuple
         # extrema yields tuples of (min, max) for each channel (R, G, B)
         max_diff = max([ex[1] for ex in extrema])
         
-        # Calculate ELA statistics on the raw, unenhanced difference image to prevent false positives
+        # Calculate spatial complexity of original image to normalize ELA thresholds for textured scenes
+        orig_gray = original.convert('L')
+        orig_arr = np.array(orig_gray)
+        grad_x = np.abs(orig_arr[:, :-1].astype(np.int16) - orig_arr[:, 1:].astype(np.int16))
+        grad_y = np.abs(orig_arr[:-1, :].astype(np.int16) - orig_arr[1:, :].astype(np.int16))
+        complexity = (np.mean(grad_x) + np.mean(grad_y)) / 2.0
+        
+        # Calculate ELA statistics on the raw, unenhanced difference image
         raw_gray = ela_image.convert('L')
         ela_data = np.array(raw_gray)
         
         mean_val = np.mean(ela_data)
         high_diff_pct = np.sum(ela_data > 1.5) / ela_data.size * 100
         
-        # Calculate risk score based on average raw difference and density of modified zones
-        risk_score = int(mean_val * 12 + high_diff_pct * 0.8)
+        # Normalize the statistics by image complexity (scales between 1.0 and 2.5)
+        comp_factor = max(1.0, min(2.5, complexity / 6.0))
+        adjusted_mean = mean_val / comp_factor
+        adjusted_pct = high_diff_pct / comp_factor
+        
+        # Calculate risk score based on adjusted statistics
+        risk_score = int(adjusted_mean * 12 + adjusted_pct * 0.8)
         risk_score = max(5, min(95, risk_score))
+        
+        # Distinguish between global filters (uniform ELA difference distribution) and localized splicing (outlier peaks)
+        ratio = max_diff / max(1.0, mean_val)
+        is_global_filter = ratio < 16.0
         
         # Scale the difference image for visualization UI
         enhancer = ImageEnhance.Brightness(ela_image)
@@ -56,7 +72,10 @@ def perform_ela(image_bytes: bytes, quality: int = 90, scale: int = 15) -> tuple
         ela_b64 = "data:image/jpeg;base64," + base64.b64encode(ela_bytes).decode('utf-8')
             
         anomalies = []
-        if risk_score > 40:
+        if is_global_filter and risk_score > 35:
+            risk_score = 30
+            anomalies.append("Global filter/adjustment detected (no localized cut-and-paste tampering found).")
+        elif risk_score > 40:
             anomalies.append("Non-uniform compression thresholds (high ELA density zones detected).")
             
         return ela_b64, risk_score, anomalies

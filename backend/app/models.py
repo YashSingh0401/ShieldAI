@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, ForeignKey, func
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -28,3 +28,13 @@ class ScamComment(Base):
 
     # Reference back to parent report
     report = relationship("ScamReport", back_populates="comments")
+
+class ScanHistory(Base):
+    __tablename__ = "scan_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    scan_type = Column(String, nullable=False)
+    target = Column(String, nullable=False)
+    risk_score = Column(Float, nullable=False)
+    status = Column(String, nullable=False)
+    timestamp = Column(DateTime, server_default=func.now(), nullable=False)

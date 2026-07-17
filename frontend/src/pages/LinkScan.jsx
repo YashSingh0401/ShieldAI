@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { ShieldCheck, ShieldAlert, Shield, Globe, Search, RefreshCw } from 'lucide-react';
+import { api } from '../api/client.js';
+import CertificateModal from '../components/CertificateModal';
 import './LinkScan.css';
 
 export default function LinkScan({ onScan }) {
   const [urlInput, setUrlInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [showCert, setShowCert] = useState(false);
 
   const exportJSON = () => {
     if (!result) return;
@@ -19,7 +22,7 @@ export default function LinkScan({ onScan }) {
   };
 
   const exportPDF = () => {
-    window.print();
+    setShowCert(true);
   };
 
   const calculateRisk = async (url) => {
@@ -27,31 +30,21 @@ export default function LinkScan({ onScan }) {
     setResult(null);
 
     try {
-      const encodedUrl = encodeURIComponent(url);
-      const res = await fetch(`http://127.0.0.1:8000/verify/url?url=${encodedUrl}`);
-      
-      if (res.ok) {
-        const data = await res.json();
-        setResult(data);
-        setLoading(false);
+      const data = await api.get('/verify/url', { url });
+      setResult(data);
+      setLoading(false);
 
-        if (onScan) {
-          onScan({
-            target: data.url,
-            result: data.risk_level,
-            risk: data.risk_score,
-            status: data.levelClass === 'safe' ? 'success' : data.levelClass === 'suspicious' ? 'warning' : 'danger'
-          });
-        }
-      } else {
-        const errorText = await res.text();
-        console.error("API error:", errorText);
-        alert("Scan failed: Server responded with an error.");
-        setLoading(false);
+      if (onScan) {
+        onScan({
+          target: data.url,
+          result: data.risk_level,
+          risk: data.risk_score,
+          status: data.levelClass === 'safe' ? 'success' : data.levelClass === 'suspicious' ? 'warning' : 'danger'
+        });
       }
     } catch (err) {
       console.error("URL scan failed:", err);
-      alert("Network error: Could not connect to the security backend.");
+      alert(err.message || "Network error: Could not connect to the security backend.");
       setLoading(false);
     }
   };
@@ -241,6 +234,14 @@ export default function LinkScan({ onScan }) {
         </div>
 
       </div>
+
+      {showCert && result && (
+        <CertificateModal
+          result={result}
+          scanType="url"
+          onClose={() => setShowCert(false)}
+        />
+      )}
     </div>
   );
 }

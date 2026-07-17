@@ -1,23 +1,27 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ShieldCheck, Link, Users, ShieldAlert, LogOut, User, Video, VideoOff, Film } from 'lucide-react';
+import { Link as RouterLink, NavLink } from 'react-router-dom';
+import { LayoutDashboard, ShieldCheck, Link, ShieldAlert, LogOut, User, Film, Volume2, History } from 'lucide-react';
 import './Navbar.css';
 
-export default function Navbar({ onLogout, user, videoEnabled, onToggleVideo }) {
+export default function Navbar({ onLogout, user }) {
+
+
   return (
     <nav className="navbar-container">
-      <div className="navbar-brand">
-        <ShieldCheck className="brand-logo" size={28} />
-        <span className="brand-text">SHIELD<span className="brand-highlight">.AI</span></span>
-      </div>
+      <RouterLink to="/" className="navbar-brand" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <ShieldCheck className="brand-logo" size={24} />
+        <span className="brand-text">Shield<span className="brand-highlight">.AI</span></span>
+      </RouterLink>
       
       <div className="navbar-menu">
+        <span className="nav-section-label">Services</span>
+        
         <NavLink 
-          to="/" 
+          to="/dashboard" 
           className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
           end
         >
-          <LayoutDashboard size={20} />
+          <LayoutDashboard size={18} />
           <span className="menu-text">Dashboard</span>
         </NavLink>
         
@@ -25,7 +29,7 @@ export default function Navbar({ onLogout, user, videoEnabled, onToggleVideo }) 
           to="/verify-image" 
           className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
         >
-          <ShieldAlert size={20} />
+          <ShieldAlert size={18} />
           <span className="menu-text">Image Verify</span>
         </NavLink>
 
@@ -33,7 +37,7 @@ export default function Navbar({ onLogout, user, videoEnabled, onToggleVideo }) 
           to="/verify-video" 
           className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
         >
-          <Film size={20} />
+          <Film size={18} />
           <span className="menu-text">Video Verify</span>
         </NavLink>
         
@@ -41,24 +45,34 @@ export default function Navbar({ onLogout, user, videoEnabled, onToggleVideo }) 
           to="/scan-link" 
           className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
         >
-          <Link size={20} />
+          <Link size={18} />
           <span className="menu-text">Link Scan</span>
         </NavLink>
-        
+
         <NavLink 
-          to="/community" 
+          to="/audio-verify" 
           className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
         >
-          <Users size={20} />
-          <span className="menu-text">Community</span>
+          <Volume2 size={18} />
+          <span className="menu-text">Audio Verify</span>
+        </NavLink>
+
+        <NavLink 
+          to="/history" 
+          className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+        >
+          <History size={18} />
+          <span className="menu-text">Scan History</span>
         </NavLink>
       </div>
 
       <div className="navbar-footer">
+
+
         {user && (
           <div className="user-profile-widget">
             <div className="user-avatar">
-              <User size={16} />
+              <User size={14} />
             </div>
             <div className="user-info">
               <span className="user-name">{user.name}</span>
@@ -66,16 +80,9 @@ export default function Navbar({ onLogout, user, videoEnabled, onToggleVideo }) 
             </div>
           </div>
         )}
-        
-        <div className="system-status">
-          <span className="status-indicator online"></span>
-          <span className="status-text">Shield Protection Active</span>
-        </div>
-
-
 
         <button onClick={onLogout} className="btn-logout">
-          <LogOut size={16} />
+          <LogOut size={14} />
           <span>Sign Out</span>
         </button>
       </div>

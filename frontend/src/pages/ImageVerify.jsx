@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, FileImage, ShieldAlert, CheckCircle, Info, Sliders, ChevronRight } from 'lucide-react';
+import { api } from '../api/client.js';
+import CertificateModal from '../components/CertificateModal';
 import './ImageVerify.css';
 
 // Base64 Mocks for the ELA Demo
@@ -14,7 +16,8 @@ export default function ImageVerify({ onVerify }) {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState(null);
-  const [opacity, setOpacity] = useState(50); // slider opacity
+  const [opacity, setOpacity] = useState(50);
+  const [showCert, setShowCert] = useState(false);
 
   const exportJSON = () => {
     if (!result) return;
@@ -28,7 +31,7 @@ export default function ImageVerify({ onVerify }) {
   };
 
   const exportPDF = () => {
-    window.print();
+    setShowCert(true);
   };
 
   const mockVerify = (isClean) => {
@@ -126,46 +129,30 @@ export default function ImageVerify({ onVerify }) {
     setLoadingStep(0);
     setResult(null);
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     const steps = [
       setTimeout(() => setLoadingStep(1), 300),
       setTimeout(() => setLoadingStep(2), 650)
     ];
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/verify/image", {
-        method: "POST",
-        body: formData
-      });
-
+      const data = await api.upload('/verify/image', file);
       steps.forEach(clearTimeout);
       setLoadingStep(2);
+      setResult(data);
+      setLoading(false);
 
-      if (res.ok) {
-        const data = await res.json();
-        setResult(data);
-        setLoading(false);
-
-        if (onVerify) {
-          onVerify({
-            target: data.filename,
-            result: data.risk_level,
-            risk: data.risk_score,
-            status: data.is_clean ? 'success' : 'danger'
-          });
-        }
-      } else {
-        const errorText = await res.text();
-        console.error("API error:", errorText);
-        alert("Integrity scan failed: Server responded with an error.");
-        setLoading(false);
+      if (onVerify) {
+        onVerify({
+          target: data.filename,
+          result: data.risk_level,
+          risk: data.risk_score,
+          status: data.is_clean ? 'success' : 'danger'
+        });
       }
     } catch (err) {
       steps.forEach(clearTimeout);
       console.error("Image verification failed:", err);
-      alert("Network error: Could not connect to the security backend.");
+      alert(err.message || "Network error: Could not connect to the security backend.");
       setLoading(false);
     }
   };
@@ -453,6 +440,14 @@ export default function ImageVerify({ onVerify }) {
         </div>
 
       </div>
+
+      {showCert && result && (
+        <CertificateModal
+          result={result}
+          scanType="image"
+          onClose={() => setShowCert(false)}
+        />
+      )}
     </div>
   );
 }

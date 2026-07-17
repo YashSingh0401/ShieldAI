@@ -12,7 +12,7 @@ export default function StatCard({ title, value, change, icon: Icon, colorClass 
       </div>
       
       <div className="stat-card-body">
-        <h3 className="stat-value">{value}</h3>
+        <h3 className={`stat-value text-${colorClass}`}>{value}</h3>
       </div>
       
       {change && (
