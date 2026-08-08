@@ -11,4 +11,5 @@ backend_err.log
 test_*.py
 conftest.py
 benchmark.py
+e2e_smoke.py
 verify_db.py

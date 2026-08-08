@@ -59,7 +59,7 @@ export default function Dashboard({ historyVersion = 0 }) {
     { name: 'Secure Assets Cleared', count: totalScans - threatsIntercepted, pct: pctClean, color: 'var(--success-gradient)' },
     { name: 'Web URL Audits', count: urlScansCount, pct: pctUrls, color: 'var(--accent-gradient)' },
     { name: 'Media ELA Scans', count: imgScansCount, pct: pctImages, color: 'linear-gradient(90deg, #ec4899 0%, #f43f5e 100%)' },
-    { name: 'Video Deepfake Checks', count: videoScansCount, pct: pctVideos, color: 'linear-gradient(90deg, #8b5cf6 0%, #d946ef 100%)' },
+    { name: 'Video Integrity Checks', count: videoScansCount, pct: pctVideos, color: 'linear-gradient(90deg, #8b5cf6 0%, #d946ef 100%)' },
   ];
 
   const systemStatus = [

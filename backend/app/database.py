@@ -9,9 +9,11 @@ engine = create_engine(
     DATABASE_URL, connect_args={"check_same_thread": False}
 )
 
-# Listen for database connections and execute SQLite optimizations
+# Listen for database connections and execute SQLite optimizations (SQLite only)
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
+    if engine.dialect.name != "sqlite":
+        return
     cursor = dbapi_connection.cursor()
     # Turn on Write-Ahead Logging (WAL) mode for concurrent reads/writes
     cursor.execute("PRAGMA journal_mode=WAL")

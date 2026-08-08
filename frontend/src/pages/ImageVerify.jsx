@@ -184,15 +184,15 @@ export default function ImageVerify({ onVerify }) {
                     <ShieldAlert className="status-icon danger-color" size={24} />
                     <div>
                       <h4>AI Generation Detected</h4>
-                      <span className="sub">Synthetic rendering / GAN noise pattern matched</span>
+                      <span className="sub">Noise signature and metadata indicators</span>
                     </div>
                   </>
                 ) : (
                   <>
                     <CheckCircle className="status-icon success-color" size={24} />
                     <div>
-                      <h4>Natural Capture Verified</h4>
-                      <span className="sub">Matches physical camera sensor properties</span>
+                      <h4>Natural Capture</h4>
+                      <span className="sub">No synthetic generation indicators found</span>
                     </div>
                   </>
                 )}

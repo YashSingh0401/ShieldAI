@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Volume2, ShieldAlert, CheckCircle, ChevronRight, Play, Pause } from 'lucide-react';
+import { Upload, Volume2, ShieldAlert, CheckCircle, ChevronRight, Play, Pause, AlertTriangle } from 'lucide-react';
 import { api } from '../api/client.js';
 import CertificateModal from '../components/CertificateModal';
 import './AudioVerify.css';
@@ -154,29 +154,37 @@ export default function AudioVerify({ onVerify }) {
           {result && (
             <div className={`glass-card result-summary-card ${result.is_clean ? 'clean' : 'tampered'}`}>
               <div className="summary-header">
-                {result.is_clean ? (
+                {result.risk_level === 'Analysis Unavailable' ? (
+                  <>
+                    <AlertTriangle className="status-icon" size={24} style={{ color: 'var(--amber, #f59e0b)' }} />
+                    <div>
+                      <h4>Analysis Unavailable</h4>
+                      <span className="sub">Audio decoding failed — metadata-only result</span>
+                    </div>
+                  </>
+                ) : result.is_clean ? (
                   <>
                     <CheckCircle className="status-icon success-color" size={24} />
                     <div>
-                      <h4>Natural Voice Verified</h4>
-                      <span className="sub">Speech pattern matches organic prosody</span>
+                      <h4>{result.risk_level}</h4>
+                      <span className="sub">Natural prosody, no synthetic speech indicators</span>
                     </div>
                   </>
                 ) : (
                   <>
                     <ShieldAlert className="status-icon danger-color" size={24} />
                     <div>
-                      <h4>Synthetic Voice Detected</h4>
-                      <span className="sub">AI voice clone or TTS pattern matched</span>
+                      <h4>{result.risk_level}</h4>
+                      <span className="sub">Speech pattern anomalies detected</span>
                     </div>
                   </>
                 )}
               </div>
 
               <div className="score-block">
-                <span className="score-label">Voice Clone Probability:</span>
+                <span className="score-label">{result.risk_level === 'Analysis Unavailable' ? 'Risk Score:' : 'Voice Clone Probability:'}</span>
                 <span className={`score-value ${result.is_clean ? 'success-color' : 'danger-color'}`}>
-                  {result.voice_clone_probability || result.risk_score}%
+                  {result.risk_level === 'Analysis Unavailable' ? result.risk_score : (result.voice_clone_probability || result.risk_score)}%
                 </span>
               </div>
 

@@ -80,6 +80,36 @@ npm run dev
    VITE_GOOGLE_CLIENT_ID=your-google-client-id-here.apps.googleusercontent.com
    ```
 2. Configure **`http://localhost:5173`** under **Authorized JavaScript Origins** in your Google Cloud Console to prevent origin blockages.
+3. Paste the same Client ID into [backend/.env](backend/.env.example) as `GOOGLE_CLIENT_ID`, and set a strong `JWT_SECRET`.
+
+### 4. Running the Test Suite
+The backend ships with pytest suites that run offline (no live server needed):
+```bash
+cd backend
+pip install pytest
+python -m pytest
+```
+An end-to-end smoke test against a running server is available via `python e2e_smoke.py` (requires `uvicorn app.main:app` running on port 8000). ffmpeg is optional locally: without it, audio/video analysis degrades to an honest metadata-only result.
+
+---
+
+## ☁️ Deployment (Render, free tier)
+
+A [render.yaml](render.yaml) blueprint deploys the full stack on free services. Click **New → Blueprint** in the Render dashboard, point it at this repo, and set the `sync: false` secrets:
+
+| Service | Secret |
+|---|---|
+| `shieldai-api` | `GOOGLE_CLIENT_ID` (Google OAuth Client ID), `JWT_SECRET` (run `openssl rand -hex 32`) |
+| `shieldai-web` | `VITE_GOOGLE_CLIENT_ID` (same Client ID) |
+
+The blueprint provisions a free **Postgres** database (`shieldai-db`) automatically — the backend auto-detects the dialect and skips SQLite-only pragmas. The backend runs in Docker with **ffmpeg preinstalled**, so full audio/video analysis works.
+
+Notes for the free tier:
+- Free web services **sleep** after inactivity (~15 min) — the first request after idle will take a few seconds to wake.
+- Render free-tier disks are ephemeral; always use the Postgres database for persistence (never the SQLite fallback).
+- Add `https://shieldai-web.onrender.com` to your Google OAuth **Authorized JavaScript Origins**.
+
+Deploying elsewhere: the backend is a plain Docker image (`cd backend && docker build -t shieldai-api .`), and the frontend is a static Vite build (`npm run build` in `frontend/`).
 
 ---
 
@@ -87,3 +117,4 @@ npm run dev
 
 * **Implementation blueprints**: Read [implementation_plan.md](implementation_plan.md) for architectural changes.
 * **Technical details & logs**: Read [walkthrough.md](walkthrough.md) for endpoint verification histories.
+* **Accuracy benchmarks**: Read [BENCHMARKS.md](BENCHMARKS.md) for measured precision/recall of the four engines.

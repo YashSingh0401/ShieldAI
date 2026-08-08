@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Film, ShieldAlert, CheckCircle, ChevronRight, Sliders, Play, RotateCw, Pause } from 'lucide-react';
+import { Upload, Film, ShieldAlert, CheckCircle, ChevronRight, Sliders, Play, RotateCw, Pause, AlertTriangle } from 'lucide-react';
 import { api } from '../api/client.js';
 import CertificateModal from '../components/CertificateModal';
 import './VideoVerify.css';
@@ -121,7 +121,7 @@ export default function VideoVerify({ onVerify }) {
             <div className="drop-zone-content">
               <Film size={48} className="upload-icon" />
               <h3>Drag & Drop Video Here</h3>
-              <p>Supports MP4 / WebM / AVI up to 100MB</p>
+              <p>Supports MP4 / WebM / AVI up to 50MB</p>
               
               <div className="file-input-wrapper">
                 <label className="btn btn-primary" htmlFor="video-upload">
@@ -155,7 +155,7 @@ export default function VideoVerify({ onVerify }) {
                   <ChevronRight size={14} /> Evaluating frame-rate consistency...
                 </div>
                 <div className={`step-item ${loadingStep >= 2 ? 'active' : ''}`}>
-                  <ChevronRight size={14} /> Mapping facial compression artifacts (GAN)...
+                  <ChevronRight size={14} /> Detecting frame-level compression anomalies...
                 </div>
                 <div className={`step-item ${loadingStep >= 3 ? 'active' : ''}`}>
                   <ChevronRight size={14} /> Correlating risk values...
@@ -168,27 +168,35 @@ export default function VideoVerify({ onVerify }) {
           {result && (
             <div className={`glass-card result-summary-card ${result.is_clean ? 'clean' : 'tampered'}`}>
               <div className="summary-header">
-                {result.is_clean ? (
+                {result.risk_level === 'Analysis Unavailable' ? (
+                  <>
+                    <AlertTriangle className="status-icon" size={24} style={{ color: 'var(--amber, #f59e0b)' }} />
+                    <div>
+                      <h4>Analysis Unavailable</h4>
+                      <span className="sub">Frame decoding failed — metadata-only result</span>
+                    </div>
+                  </>
+                ) : result.is_clean ? (
                   <>
                     <CheckCircle className="status-icon success-color" size={24} />
                     <div>
-                      <h4>Stream Verified Authentic</h4>
-                      <span className="sub">Consistent codec and compression profile</span>
+                      <h4>No Tampering Detected</h4>
+                      <span className="sub">Consistent compression profile across segments</span>
                     </div>
                   </>
                 ) : (
                   <>
                     <ShieldAlert className="status-icon danger-color" size={24} />
                     <div>
-                      <h4>Deepfake/Anomaly Match</h4>
-                      <span className="sub">GAN swap boundaries identified</span>
+                      <h4>Tampering Suspected</h4>
+                      <span className="sub">Elevated compression signature in timeline segments</span>
                     </div>
                   </>
                 )}
               </div>
               
               <div className="score-block">
-                <span className="score-label">Face Swap Risk Index:</span>
+                <span className="score-label">Tampering Risk Score:</span>
                 <span className={`score-value ${result.is_clean ? 'success-color' : 'danger-color'}`}>
                   {result.risk_score}%
                 </span>
@@ -264,7 +272,7 @@ export default function VideoVerify({ onVerify }) {
                 </div>
                 <div className="timeline-legend">
                   <span className="legend-item"><span className="legend-dot dot-green"></span> Clean Segment</span>
-                  <span className="legend-item"><span className="legend-dot dot-red"></span> Spliced/AI Bounding Box</span>
+                  <span className="legend-item"><span className="legend-dot dot-red"></span> Spliced / Re-encoded Segment</span>
                 </div>
               </div>
 

@@ -106,10 +106,10 @@ export default function Landing({ user }) {
           </div>
         </div>
 
-        {/* Ministry Pill */}
+        {/* Mission Pill */}
         <div className="ministry-capsule-tag">
           <div className="capsule-blue-dot"></div>
-          <span>Ministry of Electronics & Information Technology — India</span>
+          <span>India-focused scam & phishing protection</span>
         </div>
 
         {/* Main Headings */}
@@ -123,7 +123,7 @@ export default function Landing({ user }) {
           <div className="hero-details-row">
             <span>Real-time threat detection</span>
             <span className="bullet-dot">•</span>
-            <span>Deepfake analysis</span>
+            <span>Media tampering analysis</span>
             <span className="bullet-dot">•</span>
             <span>Phishing prevention</span>
             <span className="bullet-dot">•</span>
@@ -195,21 +195,21 @@ export default function Landing({ user }) {
             <div className="capsule-icon-wrapper blue">
               <Eye size={14} />
             </div>
-            <span>CNN Vision AI</span>
+            <span>ELA Pixel Forensics</span>
           </div>
 
           <div className="feature-capsule-card">
             <div className="capsule-icon-wrapper red">
               <ShieldAlert size={14} />
             </div>
-            <span>Zero-Day Detection</span>
+            <span>Evidence-Based Scoring</span>
           </div>
 
           <div className="feature-capsule-card">
             <div className="capsule-icon-wrapper purple">
               <Lock size={14} />
             </div>
-            <span>Military Grade</span>
+            <span>PDF Scan Certificates</span>
           </div>
 
           <div className="feature-capsule-card">

@@ -1,0 +1,40 @@
+# Render Blueprint — deploys the full stack on free-tier services.
+# 1. Push to GitHub, go to dashboard.render.com -> New -> Blueprint.
+# 2. Set the "sync: false" secrets (GOOGLE_CLIENT_ID, JWT_SECRET, VITE_GOOGLE_CLIENT_ID).
+# 3. Free-tier Postgres will be provisioned automatically.
+
+databases:
+  - name: shieldai-db
+    plan: free
+
+services:
+  - type: web
+    name: shieldai-api
+    runtime: docker
+    plan: free
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shieldai-db
+          property: connectionString
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        value: https://shieldai-web.onrender.com
+
+  - type: web
+    name: shieldai-web
+    runtime: static
+    plan: free
+    buildCommand: cd frontend && npm ci && npm run build
+    publishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://shieldai-api.onrender.com
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false

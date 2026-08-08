@@ -13,6 +13,8 @@ export default function CertificateModal({ result, scanType, onClose }) {
   if (!result) return null;
 
   const riskColor = result.risk_score < 40 ? '#10b981' : result.risk_score < 70 ? '#f59e0b' : '#ef4444';
+  const unavailable = result.risk_level === 'Analysis Unavailable';
+  const riskLevelColor = unavailable ? '#f59e0b' : riskColor;
 
   return (
     <div className="certificate-overlay" onClick={onClose}>
@@ -34,11 +36,13 @@ export default function CertificateModal({ result, scanType, onClose }) {
               <span className="cert-id">{certId}</span>
             </div>
 
-            <div className="cert-status-row" style={{ borderLeftColor: riskColor }}>
+            <div className="cert-status-row" style={{ borderLeftColor: unavailable ? '#f59e0b' : riskColor }}>
               <div className="cert-status-info">
                 <span className="cert-label">Status</span>
-                <span className="cert-status-text" style={{ color: riskColor }}>
-                  {result.is_clean ? 'PASSED - Authentic' : 'FAILED - Tampering Detected'}
+                <span className="cert-status-text" style={{ color: riskLevelColor }}>
+                  {unavailable
+                    ? 'INCONCLUSIVE - Analysis Unavailable'
+                    : result.is_clean ? 'PASSED - No Tampering Found' : 'FAILED - Tampering Detected'}
                 </span>
               </div>
               <div className="cert-risk-section">
@@ -57,8 +61,8 @@ export default function CertificateModal({ result, scanType, onClose }) {
                 <span className="cert-detail-value">{result.filename || result.url || result.domain || 'N/A'}</span>
               </div>
               <div className="cert-detail-item">
-                <span className="cert-detail-label">Risk Level</span>
-                <span className="cert-detail-value" style={{ color: riskColor }}>{result.risk_level}</span>
+                <span className="cert-label">Risk Level</span>
+                <span className="cert-detail-value" style={{ color: riskLevelColor }}>{result.risk_level}</span>
               </div>
               <div className="cert-detail-item">
                 <span className="cert-detail-label">Timestamp</span>
