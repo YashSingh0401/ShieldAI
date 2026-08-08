@@ -5,8 +5,11 @@ import asyncio
 import random
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Header, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Header, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from PIL import Image
@@ -27,6 +30,10 @@ from .auth import verify_google_token, create_session_token, get_current_user
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="shieldAI API Server", version="1.0.0")
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -97,7 +104,9 @@ async def auth_google(request: GoogleAuthRequest):
 # ─── Verify Routes ────────────────────────────────────────────────────────────
 
 @app.post("/verify/image")
+@limiter.limit("6/minute")
 async def verify_image(
+    request: Request,
     file: UploadFile = File(...),
     user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -178,7 +187,8 @@ async def verify_image(
 
 
 @app.get("/verify/url")
-def verify_url(url: str, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def verify_url(request: Request, url: str, db: Session = Depends(get_db)):
     if not url:
         raise HTTPException(status_code=400, detail="URL query parameter is required")
     result = analyze_url(url)
@@ -190,7 +200,9 @@ def verify_url(url: str, db: Session = Depends(get_db)):
 
 
 @app.post("/verify/video")
+@limiter.limit("6/minute")
 async def verify_video(
+    request: Request,
     file: UploadFile = File(...),
     user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -209,7 +221,9 @@ async def verify_video(
 
 
 @app.post("/verify/audio", response_model=AudioVerifyResponse)
+@limiter.limit("6/minute")
 async def verify_audio(
+    request: Request,
     file: UploadFile = File(...),
     user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -243,7 +257,9 @@ def get_scan_history(
 # ─── Report Routes ────────────────────────────────────────────────────────────
 
 @app.post("/reports", response_model=ScamReportResponse)
+@limiter.limit("20/minute")
 def create_report(
+    request: Request,
     report: ScamReportCreate,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
@@ -285,7 +301,9 @@ def get_reports(
 
 
 @app.post("/reports/{report_id}/upvote", response_model=ScamReportUpvoteResponse)
+@limiter.limit("20/minute")
 def upvote_report(
+    request: Request,
     report_id: int,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
@@ -317,7 +335,9 @@ def get_comments(
 
 
 @app.post("/reports/{report_id}/comments", response_model=ScamCommentResponse)
+@limiter.limit("20/minute")
 def create_comment(
+    request: Request,
     report_id: int,
     comment: ScamCommentCreate,
     db: Session = Depends(get_db),

@@ -68,6 +68,14 @@ def test_verify_url_saves_history(client, auth_headers, fake_url_analysis):
     assert rows[0]["scan_type"] == "url"
 
 
+def test_verify_url_rate_limited(client, fake_url_analysis):
+    statuses = []
+    for _ in range(40):
+        statuses.append(client.get("/verify/url", params={"url": "http://rl.test"}).status_code)
+    assert 429 in statuses
+    assert statuses.index(429) < 35
+
+
 # ─── Auth ────────────────────────────────────────────────────────────────────
 
 def test_auth_google_rejects_invalid_token(client, monkeypatch):

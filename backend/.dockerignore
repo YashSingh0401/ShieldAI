@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.env
+database.db
+database.db-shm
+database.db-wal
+benchmark_data/
+backend_out.log
+backend_err.log
+.pytest_cache/
+test_*.py
+conftest.py
+benchmark.py
+verify_db.py

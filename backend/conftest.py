@@ -36,6 +36,12 @@ def db_session():
         session.close()
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    yield
+    app.state.limiter._storage.reset()
+
+
 @pytest.fixture()
 def client(db_session):
     def override_get_db():
