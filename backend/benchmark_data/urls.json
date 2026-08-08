@@ -1,0 +1,98 @@
+[
+  {
+    "url": "https://www.google.com",
+    "malicious": false
+  },
+  {
+    "url": "https://github.com",
+    "malicious": false
+  },
+  {
+    "url": "https://www.wikipedia.org",
+    "malicious": false
+  },
+  {
+    "url": "https://www.linkedin.com",
+    "malicious": false
+  },
+  {
+    "url": "https://www.amazon.com",
+    "malicious": false
+  },
+  {
+    "url": "https://stackoverflow.com",
+    "malicious": false
+  },
+  {
+    "url": "https://www.youtube.com",
+    "malicious": false
+  },
+  {
+    "url": "https://news.ycombinator.com",
+    "malicious": false
+  },
+  {
+    "url": "https://paypal.com",
+    "malicious": false
+  },
+  {
+    "url": "https://netflix.com",
+    "malicious": false
+  },
+  {
+    "url": "https://www.reddit.com",
+    "malicious": false
+  },
+  {
+    "url": "https://mail.google.com",
+    "malicious": false
+  },
+  {
+    "url": "http://paytm-kyc-verify-update.in/auth",
+    "malicious": true
+  },
+  {
+    "url": "http://google-secure-login.xyz",
+    "malicious": true
+  },
+  {
+    "url": "http://paypal-account-verify.tk",
+    "malicious": true
+  },
+  {
+    "url": "https://amazon-free-gift.club",
+    "malicious": true
+  },
+  {
+    "url": "http://netflix-billing-update.info",
+    "malicious": true
+  },
+  {
+    "url": "http://fb-secure-login.cc",
+    "malicious": true
+  },
+  {
+    "url": "http://icici-bank-verify.work",
+    "malicious": true
+  },
+  {
+    "url": "https://sbi-kyc-update.online",
+    "malicious": true
+  },
+  {
+    "url": "http://fedex-delivery-support.top",
+    "malicious": true
+  },
+  {
+    "url": "http://free-gift-card.ml",
+    "malicious": true
+  },
+  {
+    "url": "https://paytm-wallet-verify.cf",
+    "malicious": true
+  },
+  {
+    "url": "http://hdfc-netbanking-auth.gq",
+    "malicious": true
+  }
+]

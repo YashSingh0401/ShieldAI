@@ -14,6 +14,15 @@ backend/database.db
 backend/database.db-shm
 backend/database.db-wal
 
+# Generated benchmark media (regenerate with backend/benchmark_data/generate_samples.py)
+backend/benchmark_data/image/
+backend/benchmark_data/audio/
+backend/benchmark_data/video/
+
+# Local dev logs
+backend/backend_out.log
+backend/backend_err.log
+
 # OS files
 .DS_Store
 Thumbs.db

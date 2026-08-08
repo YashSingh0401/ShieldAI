@@ -2,16 +2,19 @@ import os
 import tempfile
 import io
 import logging
+import numpy as np
 from PIL import Image, ImageChops
 
 logger = logging.getLogger(__name__)
 
 def _check_ffmpeg():
-    """Check if ffmpeg is available, return True if found."""
+    """Check if an ffmpeg binary is available (system PATH or imageio-ffmpeg bundle)."""
     try:
-        import subprocess
-        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
-        return result.returncode == 0
+        import shutil
+        if shutil.which("ffmpeg"):
+            return True
+        from imageio_ffmpeg import get_ffmpeg_exe
+        return os.path.exists(get_ffmpeg_exe())
     except Exception:
         return False
 
@@ -46,7 +49,7 @@ def analyze_video(filename: str, file_bytes: bytes) -> dict:
     
     timeline = []
     anomalies = []
-    max_ela_risk = 0
+    median_ela = 0.0
     
     # Attempt to use imageio for real frame analysis if ffmpeg is available
     has_real_analysis = False
@@ -103,39 +106,45 @@ def analyze_video(filename: str, file_bytes: bytes) -> dict:
                 indices = [int(i * (num_frames - 1) / (n_samples - 1)) for i in range(n_samples)]
             else:
                 indices = list(range(n_samples))
-                
+
+            frame_means = []
             for i, idx in enumerate(indices):
                 try:
                     frame = reader.get_data(min(idx, num_frames - 1) if num_frames > 0 else 0)
                     img = Image.fromarray(frame)
                     if img.mode != 'RGB':
                         img = img.convert('RGB')
-                        
+
                     temp_buffer = io.BytesIO()
                     img.save(temp_buffer, format='JPEG', quality=90)
                     temp_buffer.seek(0)
                     resaved = Image.open(temp_buffer)
-                    
-                    ela_frame = ImageChops.difference(img, resaved)
-                    extrema = ela_frame.getextrema()
-                    max_diff = max([ex[1] for ex in extrema])
-                    
-                    risk = min(100, int((max_diff / 255.0) * 100 * 3.5))
-                    if risk == 0:
-                        risk = 5
-                        
-                    max_ela_risk = max(max_ela_risk, risk)
-                    
-                    status = "clean"
-                    if risk > 45:
-                        status = "danger"
-                    elif risk > 25:
-                        status = "warning"
-                        
-                    timeline.append({"status": status, "risk": risk})
+
+                    ela_frame = ImageChops.difference(img, resaved).convert('L')
+                    ela_data = np.array(ela_frame)
+                    frame_means.append(float(np.mean(ela_data)))
                 except Exception:
-                    timeline.append({"status": "clean", "risk": 5})
-                    
+                    frame_means.append(None)
+
+            # Relative (per-video) anomaly scoring: a frame's mean ELA is compared
+            # against the video's own median, so busy/fast-moving content does not
+            # false-positive. Localized tampering (splices, overlays) elevates a
+            # subset of frames well above the stream baseline.
+            valid = [m for m in frame_means if m is not None]
+            median_ela = float(np.median(valid)) if valid else 0.0
+            for m in frame_means:
+                if m is None or median_ela < 0.15:
+                    timeline.append({"status": "clean", "risk": 0})
+                    continue
+                ratio = m / median_ela
+                risk = int(min(95, max(0, (ratio - 1.0) * 60)))
+                status = "clean"
+                if ratio > 1.5:
+                    status = "danger"
+                elif ratio > 1.2:
+                    status = "warning"
+                timeline.append({"status": status, "risk": risk})
+
             reader.close()
         except Exception as read_err:
             anomalies.append(f"Container inspection: {str(read_err)}")
@@ -147,14 +156,17 @@ def analyze_video(filename: str, file_bytes: bytes) -> dict:
                 except Exception:
                     pass
     
-    # Fallback when ffmpeg/imageio unavailable or fails
+    # Honest fallback when ffmpeg/imageio is unavailable or fails:
+    # report metadata-only inspection, never fabricated frame data.
     if not has_real_analysis:
         duration_sec = round(min(120.0, 5.0 + file_size_mb * 2.5), 1)
         resolution = "1920 x 1080 (1080p)" if file_size_mb > 5 else "1280 x 720 (720p)"
-        timeline = [{"status": "clean", "risk": 8 + (idx % 6)} for idx in range(20)]
-        max_ela_risk = 15
-        if not ffmpeg_available:
-            anomalies.append("ffmpeg not installed on system. Install ffmpeg for real frame-by-frame ELA analysis.")
+        timeline = [{"status": "clean", "risk": 0} for _ in range(20)]
+        median_ela = 0.0
+        anomalies.append(
+            "Frame-level ELA analysis unavailable (ffmpeg missing or stream unreadable) — "
+            "result reflects container metadata inspection only."
+        )
 
     # Ensure timeline has exactly 20 elements
     while len(timeline) < 20:
@@ -177,40 +189,26 @@ def analyze_video(filename: str, file_bytes: bytes) -> dict:
         "Bitrate": f"{round((file_size_mb * 8) / max(0.5, duration_sec), 1)} Mbps"
     }
     
-    # 2. Evidence-based classification for synthetic/deepfake modifications
-    # Only use real analysis results, not filename heuristics
-    has_ela_evidence = max_ela_risk > 45
-    has_compression_anomaly = has_ffmpeg_meta and has_real_analysis
+    # 2. Evidence-based classification for localized tampering.
+    # Only real frame analysis results are used, never filename heuristics.
     timeline_danger_count = sum(1 for item in timeline if item["status"] == "danger")
-    timeline_warning_count = sum(1 for item in timeline if item["status"] == "warning")
-    
-    is_suspicious = (
-        has_ela_evidence or
-        (has_compression_anomaly and timeline_danger_count > 5) or
-        (has_real_analysis and timeline_danger_count >= 3)
-    )
-    
-    if is_suspicious:
-        risk_score = max_ela_risk
-        if risk_score < 60:
-            risk_score = 60
-        if risk_score > 98:
-            risk_score = 98
-            
-        risk_level = "AI Deepfake Detected"
-        
-        if timeline_danger_count == 0:
-            for idx in range(6, 14):
-                timeline[idx] = {"status": "danger", "risk": 85 + (idx % 10)}
-                
+
+    if has_real_analysis and timeline_danger_count >= 3:
+        risk_score = min(95, 55 + timeline_danger_count * 4)
+        risk_level = "Elevated Compression Signature"
+
         anomalies.extend([
-            "Neural swap: GAN-splicing landmarks matching FaceSwap profiles detected.",
-            "Audio-Video Sync: Lip sync phase shift of 120ms detected in central timeline.",
-            "Compression: Double compression encoding mismatch between face bounding box and neck contours."
+            "Elevated compression signature across multiple timeline segments "
+            "(indicative of localized re-encoding or splicing; not proof of a face swap).",
+            "Frame-level compression artifacts inconsistent with a single-pass encoding baseline."
         ])
         is_clean = False
+    elif not has_real_analysis:
+        risk_score = 5
+        risk_level = "Analysis Unavailable"
+        is_clean = True
     else:
-        risk_score = max_ela_risk if max_ela_risk > 0 else 8
+        risk_score = min(30, int(8 + median_ela * 3))
         risk_level = "Authentic Stream"
         is_clean = True
         
