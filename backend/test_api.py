@@ -1,112 +1,220 @@
-import urllib.request
-import urllib.parse
-import json
-import sys
+"""API integration tests using FastAPI TestClient against an in-memory database.
 
-def test_endpoints():
-    base_url = "http://127.0.0.1:8000"
-    print("Running integration tests on locally hosted uvicorn server...")
-    
-    # 1. Test GET /verify/url
-    url_to_test = "http://paytm-kyc-verify-update.in/auth"
-    encoded_url = urllib.parse.quote(url_to_test)
-    req = urllib.request.Request(f"{base_url}/verify/url?url={encoded_url}")
-    try:
-        with urllib.request.urlopen(req) as response:
-            res_data = json.loads(response.read().decode('utf-8'))
-            print("[OK] GET /verify/url PASSED!")
-            print(f"  Risk rating: {res_data.get('risk_score')}% - {res_data.get('risk_level')}")
-            assert res_data.get('risk_score') >= 70, "URL should be classified as high risk"
-    except Exception as e:
-        print(f"[ERROR] GET /verify/url FAILED: {e}", file=sys.stderr)
-        sys.exit(1)
-        
-    # 2. Test GET /reports
-    req = urllib.request.Request(f"{base_url}/reports")
-    try:
-        with urllib.request.urlopen(req) as response:
-            res_data = json.loads(response.read().decode('utf-8'))
-            print(f"[OK] GET /reports PASSED! Found {len(res_data)} existing reports.")
-            assert len(res_data) >= 0, "Should return list of reports"
-    except Exception as e:
-        print(f"[ERROR] GET /reports FAILED: {e}", file=sys.stderr)
-        sys.exit(1)
-        
-    # 3. Test POST /reports
-    report_payload = {
+Run with: pytest
+"""
+import pytest
+
+from app import main as app_main
+from app.auth import create_session_token
+
+
+@pytest.fixture()
+def auth_headers():
+    token = create_session_token({
+        "sub": "test-user-123",
+        "email": "tester@shieldai.test",
+        "name": "Test User",
+        "picture": "",
+    })
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def fake_url_analysis(monkeypatch):
+    monkeypatch.setattr(app_main, "analyze_url", lambda url: {
+        "url": url,
+        "is_clean": False,
+        "risk_score": 92,
+        "risk_level": "High Risk - Phishing Suspected",
+        "indicators": ["Suspicious TLD", "No HTTPS"],
+    })
+
+
+# ─── Health ───────────────────────────────────────────────────────────────────
+
+def test_root(client):
+    res = client.get("/")
+    assert res.status_code == 200
+    assert res.json()["status"] == "ok"
+
+
+def test_health(client):
+    res = client.get("/health")
+    assert res.status_code == 200
+    assert res.json() == {"status": "ok"}
+
+
+# ─── URL Verification (public) ───────────────────────────────────────────────
+
+def test_verify_url_requires_no_auth(client, fake_url_analysis):
+    res = client.get("/verify/url", params={"url": "http://paytm-kyc-verify-update.in/auth"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["is_clean"] is False
+    assert body["risk_score"] >= 70
+
+
+def test_verify_url_requires_query_param(client):
+    res = client.get("/verify/url")
+    assert res.status_code == 422
+
+
+def test_verify_url_saves_history(client, auth_headers, fake_url_analysis):
+    client.get("/verify/url", params={"url": "http://example-scam.test"})
+    res = client.get("/verify/history", headers=auth_headers)
+    assert res.status_code == 200
+    rows = [r for r in res.json() if r["target"] == "http://example-scam.test"]
+    assert len(rows) == 1
+    assert rows[0]["scan_type"] == "url"
+
+
+# ─── Auth ────────────────────────────────────────────────────────────────────
+
+def test_auth_google_rejects_invalid_token(client, monkeypatch):
+    from fastapi import HTTPException
+
+    def raise_invalid(token):
+        raise HTTPException(status_code=401, detail="Invalid Google token: bad")
+
+    monkeypatch.setattr(app_main, "verify_google_token", raise_invalid)
+    res = client.post("/auth/google", json={"credential": "not-a-real-jwt"})
+    assert res.status_code == 401
+
+
+def test_auth_google_returns_token(client, monkeypatch):
+    monkeypatch.setattr(app_main, "verify_google_token", lambda token: {
+        "sub": "google-123",
+        "email": "user@shieldai.test",
+        "name": "User",
+        "picture": "",
+    })
+    res = client.post("/auth/google", json={"credential": "valid-mock-jwt"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["token"]
+    assert body["user"]["email"] == "user@shieldai.test"
+
+
+def test_verify_history_requires_auth(client):
+    res = client.get("/verify/history")
+    assert res.status_code == 401
+
+
+def test_verify_history_returns_rows(client, auth_headers, fake_url_analysis):
+    client.get("/verify/url", params={"url": "http://history-scan.test"})
+    res = client.get("/verify/history", headers=auth_headers)
+    assert res.status_code == 200
+    rows = res.json()
+    assert len(rows) == 1
+    assert rows[0]["scan_type"] == "url"
+    assert rows[0]["risk_score"] == 92
+    assert rows[0]["status"] == "danger"
+
+
+def test_verify_history_filter_by_scan_type(client, auth_headers, fake_url_analysis):
+    client.get("/verify/url", params={"url": "http://filter-scan.test"})
+    res = client.get("/verify/history", params={"scan_type": "image"}, headers=auth_headers)
+    assert res.status_code == 200
+    assert res.json() == []
+
+
+# ─── Protected Verifications ─────────────────────────────────────────────────
+
+def test_verify_image_requires_auth(client):
+    res = client.post("/verify/image", files={"file": ("a.jpg", b"not-an-image", "image/jpeg")})
+    assert res.status_code == 401
+
+
+def test_verify_image_rejects_wrong_content_type(client, auth_headers):
+    res = client.post(
+        "/verify/image",
+        files={"file": ("evil.txt", b"hello", "text/plain")},
+        headers=auth_headers,
+    )
+    assert res.status_code == 400
+    assert "Unsupported file type" in res.json()["detail"]
+
+
+def test_verify_video_requires_auth(client):
+    res = client.post("/verify/video", files={"file": ("a.mp4", b"x", "video/mp4")})
+    assert res.status_code == 401
+
+
+def test_verify_audio_requires_auth(client):
+    res = client.post("/verify/audio", files={"file": ("a.wav", b"x", "audio/wav")})
+    assert res.status_code == 401
+
+
+# ─── Scam Reports ────────────────────────────────────────────────────────────
+
+def test_create_report_requires_auth(client):
+    res = client.post("/reports", json={
+        "report_type": "phishing_link",
+        "title": "Fake Subsidy Link",
+        "description": "Fake SMS urging clients to claim subsidies immediately.",
+    })
+    assert res.status_code == 401
+
+
+def test_report_crud_flow(client, auth_headers):
+    payload = {
         "report_type": "phishing_link",
         "title": "Fake Power Grid Subsidies SMS Link",
         "scam_content": "http://power-grid-subsidy-pay.com",
-        "description": "Fake SMS urging clients to claim state electrical subsidies immediately or face power interruption.",
-        "location": "Chennai, TN"
+        "description": "Fake SMS urging clients to claim state electrical subsidies.",
+        "location": "Chennai, TN",
     }
-    data = json.dumps(report_payload).encode('utf-8')
-    req = urllib.request.Request(
-        f"{base_url}/reports",
-        data=data,
-        headers={'Content-Type': 'application/json'}
+    created = client.post("/reports", json=payload, headers=auth_headers)
+    assert created.status_code == 200
+    report_id = created.json()["id"]
+    assert report_id is not None
+
+    upvote = client.post(f"/reports/{report_id}/upvote", headers=auth_headers)
+    assert upvote.status_code == 200
+    assert upvote.json()["upvotes"] == 1
+
+    comment = client.post(
+        f"/reports/{report_id}/comments",
+        json={"author": "SecurityAnalyst", "content": "Confirming this domain is suspicious."},
+        headers=auth_headers,
     )
-    try:
-        with urllib.request.urlopen(req) as response:
-            res_data = json.loads(response.read().decode('utf-8'))
-            created_id = res_data.get('id')
-            print(f"[OK] POST /reports PASSED! Created scam report ID: {created_id}")
-            assert created_id is not None, "Report ID must be created"
-    except Exception as e:
-        print(f"[ERROR] POST /reports FAILED: {e}", file=sys.stderr)
-        sys.exit(1)
-        
-    # 4. Test POST /reports/{id}/upvote
-    req = urllib.request.Request(
-        f"{base_url}/reports/{created_id}/upvote",
-        data=b"",
-        method='POST'
-    )
-    try:
-        with urllib.request.urlopen(req) as response:
-            res_data = json.loads(response.read().decode('utf-8'))
-            print(f"[OK] POST /reports/{created_id}/upvote PASSED! Total Upvotes: {res_data.get('upvotes')}")
-            assert res_data.get('upvotes') == 1, "Upvote count should increment to 1"
-    except Exception as e:
-        print(f"[ERROR] POST /reports/upvote FAILED: {e}", file=sys.stderr)
-        sys.exit(1)
-        
-    # 5. Test POST /reports/{id}/comments
-    comment_payload = {
-        "author": "SecurityAnalyst",
-        "content": "Confirming this domain is hosted on a dynamic hosting provider using a cheap domain registrar."
+    assert comment.status_code == 200
+    assert comment.json()["id"] is not None
+
+    comments = client.get(f"/reports/{report_id}/comments")
+    assert comments.status_code == 200
+    assert len(comments.json()) == 1
+    assert comments.json()[0]["author"] == "SecurityAnalyst"
+
+
+def test_upvote_missing_report_404(client, auth_headers):
+    res = client.post("/reports/99999/upvote", headers=auth_headers)
+    assert res.status_code == 404
+
+
+def test_get_reports_public(client, auth_headers):
+    payload = {
+        "report_type": "scam_call",
+        "title": "Bank Call Scam",
+        "scam_content": "caller-id-199",
+        "description": "Caller impersonating bank staff demanding OTP.",
     }
-    data = json.dumps(comment_payload).encode('utf-8')
-    req = urllib.request.Request(
-        f"{base_url}/reports/{created_id}/comments",
-        data=data,
-        headers={'Content-Type': 'application/json'}
-    )
-    try:
-        with urllib.request.urlopen(req) as response:
-            res_data = json.loads(response.read().decode('utf-8'))
-            comment_id = res_data.get('id')
-            print(f"[OK] POST /reports/{created_id}/comments PASSED! Comment ID: {comment_id}")
-            assert comment_id is not None, "Comment ID must be created"
-    except Exception as e:
-        print(f"[ERROR] POST /reports/{created_id}/comments FAILED: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    # 6. Test GET /reports/{id}/comments
-    req = urllib.request.Request(f"{base_url}/reports/{created_id}/comments")
-    try:
-        with urllib.request.urlopen(req) as response:
-            res_data = json.loads(response.read().decode('utf-8'))
-            print(f"[OK] GET /reports/{created_id}/comments PASSED! Found {len(res_data)} comments.")
-            assert len(res_data) == 1, "Should return 1 comment"
-            assert res_data[0].get('author') == "SecurityAnalyst", "Comment author should match"
-    except Exception as e:
-        print(f"[ERROR] GET /reports/{created_id}/comments FAILED: {e}", file=sys.stderr)
-        sys.exit(1)
-        
-    print("\nALL INTEGRATION ENDPOINT CHECKS PASSED SUCCESSFULLY!")
-
-if __name__ == "__main__":
-    test_endpoints()
+    client.post("/reports", json=payload, headers=auth_headers)
+    res = client.get("/reports")
+    assert res.status_code == 200
+    assert len(res.json()) >= 1
 
 
+def test_get_reports_search_filter(client, auth_headers):
+    payload = {
+        "report_type": "phishing_link",
+        "title": "Unique Searchable Title XyZ",
+        "scam_content": "http://u.test",
+        "description": "A very specific fake link campaign description.",
+    }
+    client.post("/reports", json=payload, headers=auth_headers)
+    found = client.get("/reports", params={"q": "Unique Searchable"})
+    assert found.status_code == 200
+    assert len(found.json()) == 1
+    none = client.get("/reports", params={"q": "NoSuchTermzzz"})
+    assert none.json() == []
