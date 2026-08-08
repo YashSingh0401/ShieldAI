@@ -29,96 +29,6 @@ export default function VideoVerify({ onVerify }) {
     setShowCert(true);
   };
 
-  const mockVerify = (isClean) => {
-    setLoading(true);
-    setLoadingStep(0);
-    setResult(null);
-    setIsPlaying(false);
-    if (videoUrl) URL.revokeObjectURL(videoUrl);
-    setVideoUrl(null);
-
-    // Simulate multi-stage neural/compression scan timeline
-    setTimeout(() => {
-      setLoadingStep(1);
-      setTimeout(() => {
-        setLoadingStep(2);
-        setTimeout(() => {
-          setLoadingStep(3);
-          setTimeout(() => {
-            setLoading(false);
-            if (isClean) {
-              const resultObj = {
-                is_clean: true,
-                filename: "recreation_vlog_raw.mp4",
-                risk_score: 12,
-                risk_level: "Authentic Stream",
-                metadata: {
-                  "Container Format": "MPEG-4 Base Media (MP4)",
-                  "Video Codec": "H.264 / AVC (Advanced Video Coding)",
-                  "Frame Rate": "29.97 fps (Constant)",
-                  "Resolution": "1920 x 1080 (1080p)",
-                  "Audio Codec": "AAC (Advanced Audio Coding)",
-                  "Encoding Tool": "Sony Alpha Firmware v3.0",
-                  "Duration": "18.4 seconds",
-                  "Bitrate": "45 Mbps"
-                },
-                // Timeline maps: 20 blocks representing segments. All green for clean.
-                timeline: Array(20).fill({ status: 'clean', risk: 8 })
-              };
-              setResult(resultObj);
-              if (onVerify) {
-                onVerify({
-                  target: resultObj.filename,
-                  result: resultObj.risk_level,
-                  risk: resultObj.risk_score,
-                  status: 'success'
-                });
-              }
-            } else {
-              const resultObj = {
-                is_clean: false,
-                filename: "news_interview_deepfake.mp4",
-                risk_score: 89,
-                risk_level: "AI Deepfake Detected",
-                metadata: {
-                  "Container Format": "MPEG-4 Base Media (MP4)",
-                  "Video Codec": "HEVC / H.265 (High Efficiency Video Coding)",
-                  "Frame Rate": "30.00 fps (Variable VFR)",
-                  "Resolution": "1280 x 720 (720p)",
-                  "Audio Codec": "AAC (Advanced Audio Coding)",
-                  "Encoding Tool": "unknown (FFmpeg / PyTorch model output)",
-                  "Duration": "12.0 seconds",
-                  "Bitrate": "12 Mbps"
-                },
-                // AI swap flagged at index 6 to 13
-                timeline: Array(20).fill(null).map((_, idx) => {
-                  if (idx >= 6 && idx <= 13) {
-                    return { status: 'danger', risk: 94 };
-                  }
-                  return { status: 'clean', risk: 10 + Math.floor(Math.random() * 8) };
-                }),
-                anomalies: [
-                  "Neural swap: GAN-splicing landmarks matching FaceSwap profiles detected (Frames 180-420).",
-                  "Audio-Video Sync: Lip sync phase shift of 120ms detected in central timeline.",
-                  "Compression: Double compression encoding mismatch between face bounding box and neck contours."
-                ]
-              };
-              setResult(resultObj);
-              if (onVerify) {
-                onVerify({
-                  target: resultObj.filename,
-                  result: resultObj.risk_level,
-                  risk: resultObj.risk_score,
-                  status: 'danger'
-                });
-              }
-            }
-          }, 1000);
-        }, 1000);
-      }, 1000);
-    }, 800);
-  };
-
   const verifyVideo = async (file) => {
     if (!file) return;
 
@@ -194,19 +104,8 @@ export default function VideoVerify({ onVerify }) {
     <div className="video-verify-container">
       <header className="page-header animate-fade-in">
         <h1 className="page-title">Video Deepfake Auditor</h1>
-        <p className="page-subtitle">Scan video containers for GAN-generated face swaps, double compression, and frame-rate splicing.</p>
+        <p className="page-subtitle">Scan video frames for compression anomalies, double encoding, and timeline splicing.</p>
       </header>
-
-      {/* Demo Selector Buttons */}
-      <div className="demo-selector animate-fade-in cascade-1">
-        <span className="demo-label">Verify Sample Demos:</span>
-        <button onClick={() => mockVerify(true)} className="btn btn-secondary btn-sm">
-          Clean DSLR Stream
-        </button>
-        <button onClick={() => mockVerify(false)} className="btn btn-secondary btn-sm highlight-tamper">
-          AI Face-swap Deepfake
-        </button>
-      </div>
 
       <div className="verify-layout">
         

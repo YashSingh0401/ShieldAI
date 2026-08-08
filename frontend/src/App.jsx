@@ -12,35 +12,9 @@ import ScanHistory from './pages/ScanHistory';
 import { getStoredUser } from './api/client.js';
 import './App.css';
 
-const INITIAL_HISTORY = [
-  { id: 1, type: 'url', target: 'http://billing-power-pay.com', result: 'High Risk (Phishing)', risk: 85, status: 'danger', time: '2 hours ago' },
-  { id: 2, type: 'image', target: 'nikon_d850_landscape.jpg', result: 'Authentic (No ELA discrepancy)', risk: 8, status: 'success', time: '5 hours ago' },
-  { id: 3, type: 'video', target: 'deepfake_speech_interview.mp4', result: 'AI Deepfake (GAN Face Swap)', risk: 89, status: 'danger', time: '12 hours ago' },
-  { id: 4, type: 'url', target: 'https://github.com/login', result: 'Safe (Verified Domain)', risk: 4, status: 'success', time: '1 day ago' },
-  { id: 5, type: 'image', target: 'invoice_draft_photoshop.jpg', result: 'Modified (EXIF Software flag)', risk: 78, status: 'danger', time: '2 days ago' },
-  { id: 6, type: 'url', target: 'http://paytm-security-kyc.net', result: 'High Risk (Typosquatting)', risk: 90, status: 'danger', time: '3 days ago' },
-];
-
 function App() {
   const [user, setUser] = useState(() => getStoredUser());
-  const [userHistory, setUserHistory] = useState(() => {
-    const saved = localStorage.getItem('shield_user_history');
-    if (saved !== null) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-      } catch (e) {
-        console.error("Failed to parse user history", e);
-      }
-    }
-    return INITIAL_HISTORY;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('shield_user_history', JSON.stringify(userHistory));
-  }, [userHistory]);
+  const [historyVersion, setHistoryVersion] = useState(0);
 
   const isAuthenticated = !!user;
 
@@ -55,12 +29,9 @@ function App() {
   };
 
   const addHistoryItem = (item) => {
-    const newItem = {
-      id: Date.now(),
-      time: 'Just now',
-      ...item
-    };
-    setUserHistory(prev => [newItem, ...prev]);
+    // Server-side history is persisted by the verify endpoints; this only
+    // triggers the Dashboard to refresh with the latest server data.
+    setHistoryVersion(v => v + 1);
   };
 
   return (
@@ -83,7 +54,7 @@ function App() {
                 <Navbar onLogout={handleLogout} user={user} />
                 <main className="main-content">
                   <Routes>
-                    <Route path="/dashboard" element={<Dashboard history={userHistory} />} />
+                    <Route path="/dashboard" element={<Dashboard historyVersion={historyVersion} />} />
                     <Route 
                       path="/verify-image" 
                       element={
@@ -123,7 +94,7 @@ function App() {
                       } 
                     />
                     {/* Fallback to dashboard */}
-                    <Route path="*" element={<Dashboard history={userHistory} />} />
+                    <Route path="*" element={<Dashboard historyVersion={historyVersion} />} />
                   </Routes>
                 </main>
               </div>

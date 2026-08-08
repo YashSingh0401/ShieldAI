@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Eye, ShieldAlert, Lock, Zap, Menu, Globe, ChevronRight, Search, RefreshCw, Shield } from 'lucide-react';
+import { api } from '../api/client.js';
 import './Landing.css';
 
 export default function Landing({ user }) {
@@ -20,36 +21,37 @@ export default function Landing({ user }) {
     }
   };
 
-  const handleQuickScan = (e) => {
+  const handleQuickScan = async (e) => {
     e.preventDefault();
-    if (!quickUrl.trim()) return;
+    if (!quickUrl.trim() || scanning) return;
 
     setScanning(true);
     setScanResult(null);
     setScanStep("Analyzing protocol trees...");
 
-    setTimeout(() => {
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500));
       setScanStep("Evaluating Shannon entropy...");
-      setTimeout(() => {
-        setScanStep("Resolving brand spoofing indicators...");
-        setTimeout(() => {
-          const urlLower = quickUrl.toLowerCase();
-          const isPhish = urlLower.includes("scam") || 
-                          urlLower.includes("verify") || 
-                          urlLower.includes("paytm") || 
-                          urlLower.includes("bank") || 
-                          urlLower.includes("login") || 
-                          urlLower.includes("secure-update");
-          
-          setScanResult({
-            isSafe: !isPhish,
-            riskScore: isPhish ? Math.floor(Math.random() * 25) + 75 : Math.floor(Math.random() * 12) + 2,
-            domain: urlLower.replace(/https?:\/\/(www\.)?/, "").split('/')[0]
-          });
-          setScanning(false);
-        }, 700);
-      }, 700);
-    }, 700);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setScanStep("Resolving brand spoofing indicators...");
+
+      const data = await api.get('/verify/url', { url: quickUrl.trim() });
+      setScanResult({
+        isSafe: data.levelClass === 'safe',
+        riskScore: data.risk_score,
+        domain: data.domain,
+      });
+    } catch (err) {
+      console.error("Quick scan failed:", err);
+      setScanResult({
+        isSafe: true,
+        riskScore: 0,
+        domain: quickUrl.trim(),
+        error: err.message || 'Scan failed',
+      });
+    } finally {
+      setScanning(false);
+    }
   };
 
   return (
@@ -221,17 +223,17 @@ export default function Landing({ user }) {
 
       {/* Live Rolling Stats Ticker Footer */}
       <footer className="live-stats-ticker">
-        <div className="ticker-label">LIVE CORE TELEMETRY:</div>
+        <div className="ticker-label">CORE ENGINES:</div>
         <div className="ticker-track">
-          <div className="ticker-item">⚡ 24ms Average URL Resolve Speed</div>
-          <div className="ticker-item">🛡️ 99.8% Deepfake Face Swap Identification</div>
-          <div className="ticker-item">🔒 AES-256 System Integrity Lock</div>
-          <div className="ticker-item">🇮🇳 Government of India Cybersecurity Standards</div>
+          <div className="ticker-item">⚡ Error Level Analysis (ELA)</div>
+          <div className="ticker-item">🛡️ JPEG Blockiness Forensics</div>
+          <div className="ticker-item">🔗 Lexical URL & Typosquat Heuristics</div>
+          <div className="ticker-item">👥 Crowdsourced Community Threat Feed</div>
           {/* Repeat to allow infinite scroll effect */}
-          <div className="ticker-item">⚡ 24ms Average URL Resolve Speed</div>
-          <div className="ticker-item">🛡️ 99.8% Deepfake Face Swap Identification</div>
-          <div className="ticker-item">🔒 AES-256 System Integrity Lock</div>
-          <div className="ticker-item">🇮🇳 Government of India Cybersecurity Standards</div>
+          <div className="ticker-item">⚡ Error Level Analysis (ELA)</div>
+          <div className="ticker-item">🛡️ JPEG Blockiness Forensics</div>
+          <div className="ticker-item">🔗 Lexical URL & Typosquat Heuristics</div>
+          <div className="ticker-item">👥 Crowdsourced Community Threat Feed</div>
         </div>
       </footer>
     </div>

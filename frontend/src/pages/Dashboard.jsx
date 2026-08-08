@@ -1,26 +1,53 @@
-import React from 'react';
-import { ShieldCheck, Activity, Globe, FileImage, ShieldAlert, CheckCircle2, Film, Server, Cpu, Database } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, Activity, Globe, FileImage, ShieldAlert, CheckCircle2, Film, Server, Cpu, Database, Volume2 } from 'lucide-react';
 import StatCard from '../components/StatCard';
+import { api } from '../api/client.js';
 import './Dashboard.css';
 
-export default function Dashboard({ history = [] }) {
-  const safeHistory = Array.isArray(history) ? history : [];
+export default function Dashboard({ historyVersion = 0 }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    api.get('/verify/history')
+      .then((data) => {
+        if (!cancelled) {
+          setLogs(Array.isArray(data) ? data : []);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('Failed to fetch scan history:', err);
+          setError(err.message || 'Could not load scan history.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [historyVersion]);
+
+  const safeHistory = Array.isArray(logs) ? logs : [];
   const totalScans = safeHistory.length;
-  const threatsIntercepted = safeHistory.filter(item => item.status === 'danger' || item.risk >= 50).length;
-  
-  const verifiedMedia = safeHistory.filter(item => item.type === 'image' || item.type === 'video').length;
-  
-  const avgRisk = totalScans > 0 
-    ? safeHistory.reduce((sum, item) => sum + item.risk, 0) / totalScans 
+  const threatsIntercepted = safeHistory.filter(item => item.status === 'danger' || item.risk_score >= 50).length;
+
+  const verifiedMedia = safeHistory.filter(item => item.scan_type === 'image' || item.scan_type === 'video').length;
+
+  const avgRisk = totalScans > 0
+    ? safeHistory.reduce((sum, item) => sum + item.risk_score, 0) / totalScans
     : 0;
-  const safetyIndex = totalScans > 0 
-    ? (100 - avgRisk).toFixed(1) + '%' 
+  const safetyIndex = totalScans > 0
+    ? (100 - avgRisk).toFixed(1) + '%'
     : '100%';
 
-  const urlScansCount = safeHistory.filter(item => item.type === 'url').length;
-  const imgScansCount = safeHistory.filter(item => item.type === 'image').length;
-  const videoScansCount = safeHistory.filter(item => item.type === 'video').length;
-  
+  const urlScansCount = safeHistory.filter(item => item.scan_type === 'url').length;
+  const imgScansCount = safeHistory.filter(item => item.scan_type === 'image').length;
+  const videoScansCount = safeHistory.filter(item => item.scan_type === 'video').length;
+
   const pctThreats = totalScans > 0 ? Math.round((threatsIntercepted / totalScans) * 100) : 0;
   const pctClean = totalScans > 0 ? Math.round(((totalScans - threatsIntercepted) / totalScans) * 100) : 0;
   const pctUrls = totalScans > 0 ? Math.round((urlScansCount / totalScans) * 100) : 0;
@@ -39,10 +66,29 @@ export default function Dashboard({ history = [] }) {
     { name: 'Image ELA Analyzer', desc: 'Error level analysis module', icon: Cpu },
     { name: 'AI Generation Detector', desc: 'Pixel noise variance checks', icon: Server },
     { name: 'URL Heuristics Engine', desc: 'Domain and entropy analysis', icon: Globe },
-    { name: 'Video Container Scanner', desc: 'GAN face-swap detection', icon: Film },
-    { name: 'Database Connection', desc: 'SQLite storage synchronized', icon: Database },
-    { name: 'Authentication Service', desc: 'OAuth 2.0 ready', icon: ShieldCheck }
+    { name: 'Video Container Scanner', desc: 'Frame compression timeline', icon: Film },
+    { name: 'Audio Prosody Analyzer', desc: 'Synthetic voice heuristics', icon: Volume2 },
+    { name: 'Database Connection', desc: 'Scan history storage', icon: Database }
   ];
+
+  const formatTime = (ts) => {
+    if (!ts) return 'recent';
+    try {
+      return new Date(ts).toLocaleString('en-IN', {
+        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
+      });
+    } catch {
+      return 'recent';
+    }
+  };
+
+  const recentActivity = safeHistory.slice(0, 7).map((log) => ({
+    type: log.scan_type,
+    target: log.target,
+    result: log.status === 'danger' ? `Flagged (${Math.round(log.risk_score)}% risk)` : 'Safe',
+    status: log.status === 'danger' ? 'danger' : 'success',
+    time: formatTime(log.timestamp),
+  }));
 
   return (
     <div className="dashboard-container">
@@ -55,7 +101,6 @@ export default function Dashboard({ history = [] }) {
         <StatCard 
           title="Total Scans" 
           value={totalScans.toLocaleString()} 
-          change="+18%" 
           icon={Activity} 
           colorClass="accent" 
           className="animate-fade-in cascade-1"
@@ -63,7 +108,6 @@ export default function Dashboard({ history = [] }) {
         <StatCard 
           title="Threats Intercepted" 
           value={threatsIntercepted.toLocaleString()} 
-          change="+24%" 
           icon={ShieldAlert} 
           colorClass="danger" 
           className="animate-fade-in cascade-2"
@@ -71,7 +115,6 @@ export default function Dashboard({ history = [] }) {
         <StatCard 
           title="Verified Media" 
           value={verifiedMedia.toLocaleString()} 
-          change="+12%" 
           icon={FileImage} 
           colorClass="purple" 
           className="animate-fade-in cascade-3"
@@ -79,7 +122,6 @@ export default function Dashboard({ history = [] }) {
         <StatCard 
           title="Safety Index" 
           value={safetyIndex} 
-          change="+0.8%" 
           icon={ShieldCheck} 
           colorClass="success" 
           className="animate-fade-in cascade-4"
@@ -142,7 +184,7 @@ export default function Dashboard({ history = [] }) {
 
             <div className="security-quote">
               <CheckCircle2 size={18} className="quote-icon" />
-              <p>Community filters verified <strong>12 new reports</strong> in your area today.</p>
+              <p>All statistics are computed from your verified scan history.</p>
             </div>
           </div>
         </div>
@@ -157,19 +199,30 @@ export default function Dashboard({ history = [] }) {
           </div>
 
           <div className="feed-body">
-            {safeHistory.length === 0 ? (
+            {loading ? (
+              <div className="empty-feed-state">
+                <p>Loading scans…</p>
+                <span>Fetching your audit trail.</span>
+              </div>
+            ) : error ? (
+              <div className="empty-feed-state">
+                <p>Failed to load</p>
+                <span>{error}</span>
+              </div>
+            ) : recentActivity.length === 0 ? (
               <div className="empty-feed-state">
                 <p>No scans yet</p>
                 <span>Run your first scan to see results here.</span>
               </div>
             ) : (
               <div className="activity-list">
-                {safeHistory.slice(0, 7).map((act, idx) => (
+                {recentActivity.map((act, idx) => (
                   <div key={idx} className={`activity-item status-${act.status}`}>
                     <div className="activity-icon-col">
                       {act.type === 'url' && <Globe size={14} />}
                       {act.type === 'image' && <FileImage size={14} />}
                       {act.type === 'video' && <Film size={14} />}
+                      {act.type === 'audio' && <Volume2 size={14} />}
                     </div>
                     <div className="activity-info-col">
                       <span className="activity-target">{act.target}</span>

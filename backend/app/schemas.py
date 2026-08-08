@@ -57,11 +57,6 @@ class GoogleAuthRequest(BaseModel):
     credential: str = Field(..., description="Google OAuth credential JWT token")
 
 
-class LoginRequest(BaseModel):
-    email: str = Field(..., description="User email address")
-    password: str = Field(..., description="User password")
-
-
 class ScanHistoryResponse(BaseModel):
     id: int
     scan_type: str

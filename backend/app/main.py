@@ -17,8 +17,7 @@ from .models import Base, ScamReport, ScamComment, ScanHistory
 from .schemas import (
     ScamReportCreate, ScamReportResponse, ScamReportUpvoteResponse,
     ScamCommentCreate, ScamCommentResponse, ScanHistoryResponse, AudioVerifyResponse,
-    LoginRequest, GoogleAuthRequest, AuthResponse,
-)
+    GoogleAuthRequest, AuthResponse,)
 from .cv_engine import perform_ela, extract_exif, detect_ai_generation
 from .url_engine import analyze_url
 from .video_engine import analyze_video
@@ -92,23 +91,6 @@ async def auth_google(request: GoogleAuthRequest):
     return AuthResponse(
         token=token,
         user={"name": user_info["name"], "email": user_info["email"], "avatar": user_info.get("picture", "")},
-    )
-
-
-@app.post("/auth/login", response_model=AuthResponse)
-async def auth_login(request: LoginRequest):
-    if not request.email or not request.password:
-        raise HTTPException(status_code=400, detail="Email and password are required")
-    user_info = {
-        "sub": request.email,
-        "email": request.email,
-        "name": request.email.split("@")[0],
-        "picture": "",
-    }
-    token = create_session_token(user_info)
-    return AuthResponse(
-        token=token,
-        user={"name": user_info["name"], "email": user_info["email"], "avatar": ""},
     )
 
 
@@ -196,7 +178,7 @@ async def verify_image(
 
 
 @app.get("/verify/url")
-def verify_url(url: str, user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+def verify_url(url: str, db: Session = Depends(get_db)):
     if not url:
         raise HTTPException(status_code=400, detail="URL query parameter is required")
     result = analyze_url(url)

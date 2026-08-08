@@ -4,13 +4,6 @@ import { api } from '../api/client.js';
 import CertificateModal from '../components/CertificateModal';
 import './ImageVerify.css';
 
-// Base64 Mocks for the ELA Demo
-const MOCK_ORIGINAL_CLEAN = "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop&q=60";
-const MOCK_ELA_CLEAN = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400' style='background:%23040409;'><path d='M10 80 Q 95 10 180 80 T 360 80' stroke='rgba(0,240,255,0.03)' stroke-width='4' fill='none'/><circle cx='300' cy='200' r='120' stroke='rgba(189,0,255,0.05)' stroke-dasharray='5,5' stroke-width='1.5' fill='none'/></svg>";
-
-const MOCK_ORIGINAL_TAMPERED = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&auto=format&fit=crop&q=60";
-const MOCK_ELA_TAMPERED = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400' style='background:%23040409;'><circle cx='320' cy='150' r='45' fill='rgba(0,240,255,0.45)' filter='blur(15px)'/><circle cx='320' cy='150' r='30' fill='rgba(255,255,255,0.9)'/><path d='M 250 150 L 390 150 M 320 80 L 320 220' stroke='rgba(208,0,255,0.7)' stroke-width='2' stroke-dasharray='4,4'/></svg>";
-
 export default function ImageVerify({ onVerify }) {
   const [dragActive, setDragActive] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,94 +25,6 @@ export default function ImageVerify({ onVerify }) {
 
   const exportPDF = () => {
     setShowCert(true);
-  };
-
-  const mockVerify = (isClean) => {
-    setLoading(true);
-    setLoadingStep(0);
-    setResult(null);
-
-    // Simulate analysis timeline steps
-    setTimeout(() => {
-      setLoadingStep(1);
-      setTimeout(() => {
-        setLoadingStep(2);
-        setTimeout(() => {
-          setLoading(false);
-          if (isClean) {
-            const resultObj = {
-              is_clean: true,
-              filename: "nikon_d850_landscape.jpg",
-              has_exif: true,
-              risk_score: 8,
-              risk_level: "Safe",
-              metadata: {
-                "Camera Model": "Nikon D850",
-                "Creator Software": "In-Camera Firmware",
-                "Capture DateTime": "2026:05:22 14:10:45",
-                "ISO Speed Rating": "ISO 64",
-                "Exposure Program": "Aperture Priority",
-                "Focal Length": "24.0 mm",
-                "GPS Coordinates": "None"
-              },
-              original: MOCK_ORIGINAL_CLEAN,
-              ela: MOCK_ELA_CLEAN,
-              is_ai_generated: false,
-              ai_probability: 8,
-              ai_indicators: []
-            };
-            setResult(resultObj);
-            if (onVerify) {
-              onVerify({
-                target: resultObj.filename,
-                result: resultObj.risk_level,
-                risk: resultObj.risk_score,
-                status: 'success'
-              });
-            }
-          } else {
-            const resultObj = {
-              is_clean: false,
-              filename: "spliced_ufo_lake.jpg",
-              has_exif: true,
-              risk_score: 82,
-              risk_level: "Critical Tampering Detected",
-              metadata: {
-                "Camera Model": "Canon EOS 5D",
-                "Creator Software": "Adobe Photoshop 24.1 (Windows)",
-                "Capture DateTime": "2026:04:12 11:22:04",
-                "ISO Speed Rating": "ISO 400",
-                "Exposure Program": "Manual",
-                "Focal Length": "50.0 mm",
-                "GPS Coordinates": "40.7128° N, 74.0060° W"
-              },
-              original: MOCK_ORIGINAL_TAMPERED,
-              ela: MOCK_ELA_TAMPERED,
-              anomalies: [
-                "Software flag indicates file modification (Adobe Photoshop CC).",
-                "Non-uniform compression thresholds (high ELA brightness around central object).",
-                "Exif timestamps mismatch with file modification headers."
-              ],
-              is_ai_generated: true,
-              ai_probability: 72,
-              ai_indicators: [
-                "Total absence of camera hardware metadata headers",
-                "Extremely low sensor noise variance (indicates synthetic rendering)"
-              ]
-            };
-            setResult(resultObj);
-            if (onVerify) {
-              onVerify({
-                target: resultObj.filename,
-                result: resultObj.risk_level,
-                risk: resultObj.risk_score,
-                status: 'danger'
-              });
-            }
-          }
-        }, 1000);
-      }, 1000);
-    }, 800);
   };
 
   const verifyImage = async (file) => {
@@ -182,17 +87,6 @@ export default function ImageVerify({ onVerify }) {
         <h1 className="page-title">Image Authentication</h1>
         <p className="page-subtitle">Analyze compression error levels (ELA) and extract original metadata headers.</p>
       </header>
-
-      {/* Demo Selector Buttons */}
-      <div className="demo-selector animate-fade-in cascade-1">
-        <span className="demo-label">Verify Sample Demos:</span>
-        <button onClick={() => mockVerify(true)} className="btn btn-secondary btn-sm">
-          Clean Photo (Camera EXIF)
-        </button>
-        <button onClick={() => mockVerify(false)} className="btn btn-secondary btn-sm highlight-tamper">
-          Manipulated Image (Photoshop Spliced)
-        </button>
-      </div>
 
       <div className="verify-layout">
         
@@ -434,7 +328,7 @@ export default function ImageVerify({ onVerify }) {
             <div className="glass-card viewer-placeholder">
               <FileImage size={64} className="placeholder-icon" />
               <h3>Visualizer Inactive</h3>
-              <p>Upload a file or select a mock sample to inspect metadata logs and view the ELA grid overlay.</p>
+              <p>Upload a file to inspect metadata logs and view the ELA grid overlay.</p>
             </div>
           )}
         </div>
