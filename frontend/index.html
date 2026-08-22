@@ -4,50 +4,24 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="shieldAI is a modern security portal designed to verify image manipulation layers (ELA) and audit lexical URL phishing patterns." />
+    <meta name="description" content="ShieldAI is a free forensics portal: detect image tampering (ELA), video splice anomalies, synthetic audio patterns, and phishing links. No paywalls — 10 free media scans per user per day." />
     <title>shieldAI | Security Verification Portal</title>
     <meta name="color-scheme" content="only light">
-    <script>
-      window.onerror = function(message, source, lineno, colno, error) {
-        const div = document.createElement('div');
-        div.style.position = 'fixed';
-        div.style.top = '0';
-        div.style.left = '0';
-        div.style.width = '100vw';
-        div.style.height = '100vh';
-        div.style.backgroundColor = '#1a0505';
-        div.style.color = '#ff6b6b';
-        div.style.padding = '40px';
-        div.style.fontFamily = 'monospace';
-        div.style.zIndex = '999999';
-        div.style.overflow = 'auto';
-        div.style.boxSizing = 'border-box';
-        div.innerHTML = '<h2>🔴 Unhandled Runtime Error</h2>' +
-                        '<p><strong>Message:</strong> ' + message + '</p>' +
-                        '<p><strong>Source:</strong> ' + source + ' (Line: ' + lineno + ', Col: ' + colno + ')</p>' +
-                        '<pre style="white-space: pre-wrap; background: #2d0c0c; padding: 15px; border-radius: 8px; margin-top: 15px;"><strong>Stack Trace:</strong>\n' + (error && error.stack ? error.stack : 'N/A') + '</pre>';
-        document.body.appendChild(div);
-        return false;
-      };
-      window.onunhandledrejection = function(event) {
-        const div = document.createElement('div');
-        div.style.position = 'fixed';
-        div.style.top = '0';
-        div.style.left = '0';
-        div.style.width = '100vw';
-        div.style.height = '100vh';
-        div.style.backgroundColor = '#1a0505';
-        div.style.color = '#ff6b6b';
-        div.style.padding = '40px';
-        div.style.fontFamily = 'monospace';
-        div.style.zIndex = '999999';
-        div.style.overflow = 'auto';
-        div.style.boxSizing = 'border-box';
-        div.innerHTML = '<h2>🔴 Unhandled Promise Rejection</h2>' +
-                        '<p><strong>Reason:</strong> ' + (event.reason && event.reason.stack ? event.reason.stack : event.reason) + '</p>';
-        document.body.appendChild(div);
-      };
-    </script>
+
+    <!-- Social sharing cards -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ShieldAI" />
+    <meta property="og:title" content="ShieldAI — Free image, video, audio & link forensics" />
+    <meta property="og:description" content="Detect image tampering, video splices, synthetic voice patterns, and phishing links. Evidence-based scoring, completely free." />
+    <meta property="og:image" content="https://shieldai-web.onrender.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:url" content="https://shieldai-web.onrender.com" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ShieldAI — Free image, video, audio & link forensics" />
+    <meta name="twitter:description" content="Detect image tampering, video splices, synthetic voice patterns, and phishing links. Evidence-based scoring, completely free." />
+    <meta name="twitter:image" content="https://shieldai-web.onrender.com/og-image.png" />
+
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>

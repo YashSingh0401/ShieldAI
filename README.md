@@ -1,34 +1,40 @@
 # 🛡️ shieldAI: Full-Stack Fraud Verification & Digital Asset Audit Portal
 
+[![CI](https://github.com/YashSingh0401/ShieldAI/actions/workflows/ci.yml/badge.svg)](https://github.com/YashSingh0401/ShieldAI/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111.0-emerald?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-19.2-blue?logo=react&logoColor=white)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-8.0-purple?logo=vite&logoColor=white)](https://vite.dev)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-**shieldAI** is a premium, high-fidelity security control center built to audit and verify digital assets in real-time. It protects users from modern digital fraud by combining localized image manipulation checks (Error Level Analysis), deepfake video timeline scanning, lexical URL analysis, and crowdsourced warning feeds into a unified command dashboard.
+**Try it live:** [shieldai-web.onrender.com](https://shieldai-web.onrender.com) · API health: [shieldai-api-18a4.onrender.com/health](https://shieldai-api-18a4.onrender.com/health)
+
+**shieldAI** is a free, open-source security portal that audits digital assets in real time. It combines image manipulation checks (Error Level Analysis + JPEG blockiness forensics), video splice/timeline analysis, audio prosody statistics, lexical URL phishing heuristics, and a crowdsourced scam-report feed into one dashboard. Every result is evidence-based and shown with its reasoning — no black-box verdicts.
+
+> ⚠️ Results are heuristic indicators, not proof of authenticity. See [BENCHMARKS.md](BENCHMARKS.md) for measured accuracy.
 
 ---
 
 ## ⚡ Key Core Portals & Engines
 
 ### 1. 🖼️ Image Authentication & AI Generator Detector
-* **Error Level Analysis (ELA)**: Resaves uploaded images at 90% JPEG quality to compute pixel-by-pixel compression discrepancies, highlighting edited layers in a dynamic overlay slider.
-* **Texture Complexity Normalization**: Evaluates spatial gradients of original images using `numpy` to adjust thresholds, preventing false positives in highly textured regions.
-* **AI Generation Predictor**: Inspects raw byte streams and EXIF tables to identify Stable Diffusion parameters, Midjourney/DALL-E software tags, and checks sensor grain noise variance to output an AI probability percentage.
-* **EXIF Parser**: Extracts hardware manufacturer details (`Model`, `Make`, `Capture DateTime`, etc.) and automatically applies a 40% trust discount to verified device originals.
+* **Error Level Analysis (ELA)**: Resaves uploaded images at 90% JPEG quality and computes pixel-by-pixel compression differences, surfacing edited layers in an interactive overlay slider.
+* **JPEG Blockiness Forensics**: Measures 8×8 grid-boundary energy to flag double-compression artifacts typical of re-saved or spliced files.
+* **AI-Generation Heuristics**: Inspects byte streams, EXIF tables, and sensor-noise statistics for indicators commonly found in synthetic exports — reported as a probability with explicit indicators, never a verdict.
+* **EXIF Parser**: Extracts hardware manufacturer details (`Model`, `Make`, `Capture DateTime`, etc.) and automatically applies a trust discount to verified device originals.
 
 ### 2. 🎬 Video Deepfake Auditor
-* **Stream Demuxing**: Employs `imageio` and `imageio-ffmpeg` to parse raw video streams, extracting container magic-bytes, codecs, and variable frame-rate (VFR) signatures.
-* **Frame-by-Frame ELA Engine**: Extracts exactly 20 video frames distributed evenly across the timeline, running ELA compression checks on each frame to construct a localized deepfake risk timeline.
+* **Stream Demuxing**: Uses `imageio` + `imageio-ffmpeg` to parse containers, extracting magic bytes, codecs, and variable frame-rate (VFR) signatures.
+* **Frame-by-Frame ELA Engine**: Extracts 20 frames evenly across the timeline and scores each against the video's own median to localize splices and re-encoding. If ffmpeg is unavailable the result degrades honestly to metadata-only ("Analysis Unavailable") — it never fabricates analysis.
 
 ### 3. 🔗 Link Safety Auditor
 * **Shannon Entropy Analysis**: Computes hostname character randomness to identify programmatically generated domain hacks and obfuscated redirection paths.
 * **Lexical Audits**: Inspects URL string properties (protocol safety, sub-nesting depth, suspicious TLDs like `.xyz`/`.click`, and deceptive brand typosquatting).
 
 ### 4. 👥 Crowdsourced Threat Feed & Collapsible Discussions
-* **SQLite Persistence**: Stores security reports and comments locally using an SQLAlchemy relational database schema.
-* **Discussion Drawers**: Allows community members to expand scam cards to post and read threaded comments in real-time.
+* **SQLAlchemy Persistence**: PostgreSQL on Render (free tier), SQLite locally — schema upgrades apply automatically at startup.
+* **Discussion Drawers**: Community members expand scam cards to post and read threaded comments.
+* **Moderation**: Length caps, link/character-spam filters, duplicate rejection, and admin hide/unhide/delete endpoints (see [RUNBOOK.md](RUNBOOK.md)).
 
 ---
 
@@ -36,7 +42,7 @@
 
 * **Frontend**: React.js, React Router DOM, Lucide Icons, Vanilla CSS Grid (Custom design tokens, shifting background grids, and moving aurora gradient blobs).
 * **Backend**: Python 3.10+, FastAPI (Asynchronous routes and CORS middleware), Uvicorn.
-* **Database**: SQLite (SQLAlchemy ORM, multi-relationship schemas).
+* **Database**: PostgreSQL (Render free tier) or SQLite (local) via SQLAlchemy ORM.
 * **Computational Engines**: Pillow (PIL), NumPy, ImageIO (FFmpeg integration).
 
 ---
@@ -120,6 +126,19 @@ Notes for the free tier:
 
 Deploying elsewhere: the backend is a plain Docker image (`cd backend && docker build -t shieldai-api .`), and the frontend is a static Vite build (`npm run build` in `frontend/`).
 
+## 📏 Known Limitations (measured, not marketing)
+
+Measured on the synthetic benchmark set in [BENCHMARKS.md](BENCHMARKS.md) (threshold = 40):
+
+| Engine | Precision | Recall | Honest gaps |
+|---|---|---|---|
+| Image ELA | 1.00 | 1.00 | Calibrated on synthetic tampering; real-world camera noise may differ |
+| URL lexical | 1.00 | 1.00 | Lexical only — no live DNS/whois/content inspection |
+| Video timeline | 1.00 | 0.33 | Detects localized splices; misses uniform re-encodes and micro-overlays |
+| Audio prosody | 1.00 | 0.33 | Flags monotone/synthetic profiles; misses high-quality MP3 re-encodes and short clips by design |
+
+Recall numbers reflect deliberate conservatism: the engines prefer silence over false accusations.
+
 ---
 
 ## 📝 Document Maps
@@ -127,3 +146,4 @@ Deploying elsewhere: the backend is a plain Docker image (`cd backend && docker 
 * **Implementation blueprints**: Read [implementation_plan.md](implementation_plan.md) for architectural changes.
 * **Technical details & logs**: Read [walkthrough.md](walkthrough.md) for endpoint verification histories.
 * **Accuracy benchmarks**: Read [BENCHMARKS.md](BENCHMARKS.md) for measured precision/recall of the four engines.
+* **Operations guide**: Read [RUNBOOK.md](RUNBOOK.md) for moderation, quota tuning, and database expiry playbooks.
