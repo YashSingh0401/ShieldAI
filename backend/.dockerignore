@@ -13,3 +13,4 @@ conftest.py
 benchmark.py
 e2e_smoke.py
 verify_db.py
+verify_migration.py
