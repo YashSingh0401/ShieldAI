@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ShieldCheck, Eye, ShieldAlert, Lock, Zap, Menu, Globe, ChevronRight, Search, RefreshCw, Shield } from 'lucide-react';
 import { api } from '../api/client.js';
 import './Landing.css';
@@ -236,6 +236,16 @@ export default function Landing({ user }) {
           <div className="ticker-item">👥 Crowdsourced Community Threat Feed</div>
         </div>
       </footer>
+
+      {/* Legal Footer */}
+      <div className="legal-footer-bar">
+        <span>Heuristic analysis &mdash; not proof of authenticity.</span>
+        <nav className="legal-footer-links">
+          <Link to="/privacy">Privacy</Link>
+          <span aria-hidden="true">&middot;</span>
+          <Link to="/terms">Terms</Link>
+        </nav>
+      </div>
     </div>
   );
 }

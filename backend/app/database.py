@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -30,6 +30,28 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Declarative base class for models
 Base = declarative_base()
+
+
+def ensure_schema_upgrades():
+    """Lightweight startup migration for columns added after first launch.
+
+    create_all() creates new tables but never ALTERs existing ones, so columns
+    introduced post-deploy (user_email, is_hidden) are added here when missing.
+    """
+    inspector = inspect(engine)
+
+    def _add_column(table: str, column_ddl: str, column_name: str):
+        existing = {c["name"] for c in inspector.get_columns(table)}
+        if column_name not in existing:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column_ddl}"))
+
+    if inspector.has_table("scan_history"):
+        _add_column("scan_history", "user_email VARCHAR", "user_email")
+    if inspector.has_table("scam_reports"):
+        # NOT NULL DEFAULT keeps pre-existing reports visible to the public feed.
+        _add_column("scam_reports", "is_hidden BOOLEAN NOT NULL DEFAULT '0'", "is_hidden")
+
 
 # FastAPI dependency to yield database sessions
 def get_db():

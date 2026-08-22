@@ -1,8 +1,10 @@
 import io
+import re
 import base64
 import logging
 import asyncio
 import random
+from datetime import datetime, time, timezone
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Header, WebSocket, WebSocketDisconnect, Request
@@ -10,13 +12,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from PIL import Image
 
-from .config import FRONTEND_URL, GOOGLE_CLIENT_ID, MAX_UPLOAD_SIZE_MB, ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, ALLOWED_AUDIO_TYPES
-from .database import engine, get_db
-from .models import Base, ScamReport, ScamComment, ScanHistory
+from .config import (
+    FRONTEND_URL, GOOGLE_CLIENT_ID, MAX_UPLOAD_SIZE_MB,
+    ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, ALLOWED_AUDIO_TYPES,
+    FREE_DAILY_MEDIA_SCANS, ADMIN_EMAILS,
+)
+from .database import engine, get_db, ensure_schema_upgrades
+from .models import Base, User, ScamReport, ScamComment, ScanHistory
 from .schemas import (
     ScamReportCreate, ScamReportResponse, ScamReportUpvoteResponse,
     ScamCommentCreate, ScamCommentResponse, ScanHistoryResponse, AudioVerifyResponse,
@@ -25,8 +32,9 @@ from .cv_engine import perform_ela, extract_exif, detect_ai_generation
 from .url_engine import analyze_url
 from .video_engine import analyze_video
 from .audio_engine import analyze_audio
-from .auth import verify_google_token, create_session_token, get_current_user
+from .auth import verify_google_token, create_session_token, get_current_user, get_optional_user
 
+ensure_schema_upgrades()
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="shieldAI API Server", version="1.0.0")
@@ -84,26 +92,73 @@ def validate_upload(file: UploadFile, allowed_types: set, max_mb: int):
         )
 
 
-def save_scan_history(db: Session, scan_type: str, target: str, risk_score: float, status: str):
+def save_scan_history(db: Session, scan_type: str, target: str, risk_score: float, status: str, user_email: Optional[str] = None):
     entry = ScanHistory(
         scan_type=scan_type,
         target=target,
         risk_score=risk_score,
         status=status,
+        user_email=user_email.lower() if user_email else None,
     )
     db.add(entry)
     db.commit()
 
 
+def enforce_media_quota(user: dict, db: Session):
+    """Free-for-all abuse protection: cap media scans (image/video/audio) per UTC day."""
+    day_start_utc = datetime.combine(datetime.now(timezone.utc).date(), time.min)
+    used = (
+        db.query(func.count(ScanHistory.id))
+        .filter(
+            ScanHistory.user_email == user["email"].lower(),
+            ScanHistory.scan_type.in_(["image", "video", "audio"]),
+            ScanHistory.timestamp >= day_start_utc,
+        )
+        .scalar() or 0
+    )
+    if used >= FREE_DAILY_MEDIA_SCANS:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "quota_exceeded",
+                "limit": FREE_DAILY_MEDIA_SCANS,
+                "used": int(used),
+                "message": f"You've used all {FREE_DAILY_MEDIA_SCANS} free media scans for today. Your allowance resets at midnight UTC.",
+            },
+        )
+
+
+_URL_RE = re.compile(r"https?://|www\.", re.IGNORECASE)
+_CHAR_SPAM_RE = re.compile(r"(.)\1{24,}")
+
+
+def _looks_like_spam(text_content: str) -> bool:
+    """Light-touch feed spam heuristics: link floods and character spam."""
+    if len(_URL_RE.findall(text_content)) > 5:
+        return True
+    if _CHAR_SPAM_RE.search(text_content):
+        return True
+    return False
+
+
 # ─── Auth Routes ──────────────────────────────────────────────────────────────
 
 @app.post("/auth/google", response_model=AuthResponse)
-async def auth_google(request: GoogleAuthRequest):
+async def auth_google(request: GoogleAuthRequest, db: Session = Depends(get_db)):
     user_info = verify_google_token(request.credential)
+    email = user_info["email"].lower()
+    existing = db.query(User).filter(User.email == email).first()
+    if existing:
+        existing.name = user_info.get("name") or existing.name
+        existing.picture = user_info.get("picture") or existing.picture
+    else:
+        db.add(User(email=email, name=user_info.get("name", ""), picture=user_info.get("picture", "")))
+    db.commit()
+
     token = create_session_token(user_info)
     return AuthResponse(
         token=token,
-        user={"name": user_info["name"], "email": user_info["email"], "avatar": user_info.get("picture", "")},
+        user={"name": user_info["name"], "email": email, "avatar": user_info.get("picture", "")},
     )
 
 
@@ -118,6 +173,7 @@ async def verify_image(
     db: Session = Depends(get_db),
 ):
     validate_upload(file, ALLOWED_IMAGE_TYPES, MAX_UPLOAD_SIZE_MB)
+    enforce_media_quota(user, db)
     try:
         image_bytes = await file.read()
 
@@ -170,7 +226,7 @@ async def verify_image(
         risk_level = "Safe" if is_clean else "Critical Tampering Detected"
 
         status = "success" if is_clean else "danger"
-        save_scan_history(db, "image", file.filename, float(risk_score), status)
+        save_scan_history(db, "image", file.filename, float(risk_score), status, user_email=user["email"])
 
         return {
             "is_clean": is_clean,
@@ -194,14 +250,14 @@ async def verify_image(
 
 @app.get("/verify/url")
 @limiter.limit("30/minute")
-def verify_url(request: Request, url: str, db: Session = Depends(get_db)):
+def verify_url(request: Request, url: str, db: Session = Depends(get_db), user: Optional[dict] = Depends(get_optional_user)):
     if not url:
         raise HTTPException(status_code=400, detail="URL query parameter is required")
     result = analyze_url(url)
     risk_score = result.get("risk_score", 0)
     is_clean = result.get("is_clean", risk_score < 50)
     status = "success" if is_clean else "danger"
-    save_scan_history(db, "url", url, float(risk_score), status)
+    save_scan_history(db, "url", url, float(risk_score), status, user_email=user["email"] if user else None)
     return result
 
 
@@ -214,11 +270,12 @@ async def verify_video(
     db: Session = Depends(get_db),
 ):
     validate_upload(file, ALLOWED_VIDEO_TYPES, MAX_UPLOAD_SIZE_MB)
+    enforce_media_quota(user, db)
     try:
         file_bytes = await file.read()
         result = analyze_video(file.filename, file_bytes)
         status = "success" if result.get("is_clean") else "danger"
-        save_scan_history(db, "video", file.filename, float(result.get("risk_score", 0)), status)
+        save_scan_history(db, "video", file.filename, float(result.get("risk_score", 0)), status, user_email=user["email"])
         return result
     except HTTPException:
         raise
@@ -236,11 +293,12 @@ async def verify_audio(
 ):
     allowed_audio = ALLOWED_AUDIO_TYPES | {"application/octet-stream"}
     validate_upload(file, allowed_audio, MAX_UPLOAD_SIZE_MB)
+    enforce_media_quota(user, db)
     try:
         file_bytes = await file.read()
         result = analyze_audio(file.filename, file_bytes)
         status = "success" if result.get("is_clean") else "danger"
-        save_scan_history(db, "audio", file.filename, float(result.get("risk_score", 0)), status)
+        save_scan_history(db, "audio", file.filename, float(result.get("risk_score", 0)), status, user_email=user["email"])
         return result
     except HTTPException:
         raise
@@ -254,7 +312,8 @@ def get_scan_history(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    query = db.query(ScanHistory)
+    # Users only ever see their own scans.
+    query = db.query(ScanHistory).filter(ScanHistory.user_email == user["email"].lower())
     if scan_type:
         query = query.filter(ScanHistory.scan_type == scan_type)
     return query.order_by(ScanHistory.timestamp.desc()).all()
@@ -270,6 +329,17 @@ def create_report(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
+    combined_text = f"{report.title} {report.scam_content or ''} {report.description}"
+    if _looks_like_spam(combined_text):
+        raise HTTPException(status_code=400, detail="Report rejected by spam filter.")
+
+    content_norm = (report.scam_content or "").strip()
+    dup_query = db.query(ScamReport).filter(ScamReport.title == report.title.strip())
+    if content_norm:
+        dup_query = dup_query.filter(ScamReport.scam_content == content_norm)
+    if dup_query.first():
+        raise HTTPException(status_code=400, detail="An identical report already exists.")
+
     db_report = ScamReport(
         report_type=report.report_type,
         title=report.title,
@@ -289,7 +359,8 @@ def get_reports(
     q: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    query = db.query(ScamReport)
+    # Public feed excludes moderator-hidden reports.
+    query = db.query(ScamReport).filter(ScamReport.is_hidden == False)  # noqa: E712
 
     if report_type != "all":
         query = query.filter(ScamReport.report_type == report_type)
@@ -352,6 +423,17 @@ def create_comment(
     db_report = db.query(ScamReport).filter(ScamReport.id == report_id).first()
     if not db_report:
         raise HTTPException(status_code=404, detail="Report not found")
+    if _looks_like_spam(comment.content):
+        raise HTTPException(status_code=400, detail="Comment rejected by spam filter.")
+    duplicate = (
+        db.query(ScamComment)
+        .filter(ScamComment.report_id == report_id)
+        .filter(ScamComment.author == comment.author)
+        .filter(ScamComment.content == comment.content)
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(status_code=400, detail="An identical comment already exists.")
     db_comment = ScamComment(
         report_id=report_id,
         author=comment.author,
@@ -361,3 +443,60 @@ def create_comment(
     db.commit()
     db.refresh(db_comment)
     return db_comment
+
+
+# ─── Admin / Moderation Routes ────────────────────────────────────────────────
+
+def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user["email"].lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
+def _get_report_or_404(db: Session, report_id: int) -> ScamReport:
+    report = db.query(ScamReport).filter(ScamReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
+
+
+@app.post("/admin/reports/{report_id}/hide", response_model=ScamReportResponse)
+def hide_report(report_id: int, db: Session = Depends(get_db), admin: dict = Depends(require_admin)):
+    report = _get_report_or_404(db, report_id)
+    report.is_hidden = True
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+@app.post("/admin/reports/{report_id}/unhide", response_model=ScamReportResponse)
+def unhide_report(report_id: int, db: Session = Depends(get_db), admin: dict = Depends(require_admin)):
+    report = _get_report_or_404(db, report_id)
+    report.is_hidden = False
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+@app.delete("/admin/reports/{report_id}")
+def delete_report(report_id: int, db: Session = Depends(get_db), admin: dict = Depends(require_admin)):
+    report = _get_report_or_404(db, report_id)
+    db.delete(report)  # comments cascade via relationship
+    db.commit()
+    return {"status": "deleted", "id": report_id}
+
+
+@app.delete("/admin/reports/{report_id}/comments/{comment_id}")
+def delete_comment(report_id: int, comment_id: int, db: Session = Depends(get_db), admin: dict = Depends(require_admin)):
+    _get_report_or_404(db, report_id)
+    comment = (
+        db.query(ScamComment)
+        .filter(ScamComment.id == comment_id)
+        .filter(ScamComment.report_id == report_id)
+        .first()
+    )
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    db.delete(comment)
+    db.commit()
+    return {"status": "deleted", "id": comment_id}

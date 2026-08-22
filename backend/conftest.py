@@ -4,6 +4,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app import main as app_main
+from app.auth import create_session_token
 from app.database import get_db
 from app.main import app
 from app.models import Base, ScamComment, ScamReport, ScanHistory
@@ -40,6 +42,28 @@ def db_session():
 def _reset_rate_limits():
     yield
     app.state.limiter._storage.reset()
+
+
+@pytest.fixture()
+def auth_headers():
+    token = create_session_token({
+        "sub": "test-user-123",
+        "email": "tester@shieldai.test",
+        "name": "Test User",
+        "picture": "",
+    })
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def fake_url_analysis(monkeypatch):
+    monkeypatch.setattr(app_main, "analyze_url", lambda url: {
+        "url": url,
+        "is_clean": False,
+        "risk_score": 92,
+        "risk_level": "High Risk - Phishing Suspected",
+        "indicators": ["Suspicious TLD", "No HTTPS"],
+    })
 
 
 @pytest.fixture()

@@ -1,6 +1,15 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, ForeignKey, Boolean, func
 from sqlalchemy.orm import relationship
 from .database import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, default="", nullable=False)
+    picture = Column(String, default="", nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
 class ScamReport(Base):
     __tablename__ = "scam_reports"
@@ -12,6 +21,7 @@ class ScamReport(Base):
     description = Column(Text, nullable=False)
     location = Column(String, index=True, nullable=True)
     upvotes = Column(Integer, default=0, nullable=False)
+    is_hidden = Column(Boolean, nullable=False, default=False, server_default="0")
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     # Relationship to comments
@@ -37,4 +47,5 @@ class ScanHistory(Base):
     target = Column(String, nullable=False)
     risk_score = Column(Float, nullable=False)
     status = Column(String, nullable=False)
+    user_email = Column(String, index=True, nullable=True)
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)

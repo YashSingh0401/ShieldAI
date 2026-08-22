@@ -5,9 +5,9 @@ from pydantic import BaseModel, Field, field_validator
 class ScamReportBase(BaseModel):
     report_type: str = Field(..., description="Category of scam: phishing_link, scam_call, fake_app, fraud_website, other")
     title: str = Field(..., min_length=3, max_length=100, description="Short descriptive title of the scam")
-    scam_content: Optional[str] = Field(None, description="The phone number, link, or email address involved")
-    description: str = Field(..., min_length=10, description="Detailed description of the scam mechanism")
-    location: Optional[str] = Field(None, description="City/State where the scam occurred")
+    scam_content: Optional[str] = Field(None, max_length=300, description="The phone number, link, or email address involved")
+    description: str = Field(..., min_length=10, max_length=1000, description="Detailed description of the scam mechanism")
+    location: Optional[str] = Field(None, max_length=100, description="City/State where the scam occurred")
 
 class ScamReportCreate(ScamReportBase):
     @field_validator('report_type')
@@ -21,6 +21,7 @@ class ScamReportCreate(ScamReportBase):
 class ScamReportResponse(ScamReportBase):
     id: int
     upvotes: int
+    is_hidden: bool = False
     created_at: datetime
 
     # Pydantic configuration to enable reading ORM models directly
@@ -38,7 +39,7 @@ class ScamReportUpvoteResponse(BaseModel):
 
 class ScamCommentBase(BaseModel):
     author: str = Field(..., min_length=2, max_length=50, description="Author's name or username")
-    content: str = Field(..., min_length=1, description="Comment text content")
+    content: str = Field(..., min_length=1, max_length=500, description="Comment text content")
 
 class ScamCommentCreate(ScamCommentBase):
     pass

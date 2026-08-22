@@ -2,6 +2,8 @@ import React, { useState, useRef } from 'react';
 import { Upload, Volume2, ShieldAlert, CheckCircle, ChevronRight, Play, Pause, AlertTriangle } from 'lucide-react';
 import { api } from '../api/client.js';
 import CertificateModal from '../components/CertificateModal';
+import QuotaReachedCard from '../components/QuotaReachedCard';
+import { FREE_DAILY_MEDIA_SCANS } from '../config.js';
 import './AudioVerify.css';
 
 export default function AudioVerify({ onVerify }) {
@@ -9,6 +11,7 @@ export default function AudioVerify({ onVerify }) {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState(null);
+  const [quotaReached, setQuotaReached] = useState(false);
   const [audioUrl, setAudioUrl] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showCert, setShowCert] = useState(false);
@@ -45,6 +48,7 @@ export default function AudioVerify({ onVerify }) {
     setLoading(true);
     setLoadingStep(0);
     setResult(null);
+    setQuotaReached(false);
 
     const steps = [
       setTimeout(() => setLoadingStep(1), 300),
@@ -68,6 +72,11 @@ export default function AudioVerify({ onVerify }) {
       }
     } catch (err) {
       steps.forEach(clearTimeout);
+      if (err.status === 402 && err.body?.detail?.code === 'quota_exceeded') {
+        setQuotaReached(true);
+        setLoading(false);
+        return;
+      }
       console.error("Audio verification failed:", err);
       alert(err.message || "Network error: Could not connect to the security backend.");
       setLoading(false);
@@ -239,7 +248,11 @@ export default function AudioVerify({ onVerify }) {
                   </button>
                   <div className="audio-track-info">
                     <span className="audio-filename">{result ? result.filename : 'Selected file'}</span>
-                    {result && (
+          {quotaReached && !loading && (
+            <QuotaReachedCard limit={FREE_DAILY_MEDIA_SCANS} />
+          )}
+
+          {result && (
                       <span className="audio-meta">{result.sample_rate} Hz &middot; {result.pitch_status}</span>
                     )}
                   </div>

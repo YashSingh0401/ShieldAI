@@ -56,17 +56,24 @@ async function request(endpoint, options = {}) {
 
   if (!res.ok) {
     let errorMessage = `Request failed with status ${res.status}`;
+    let errorBody = null;
     try {
       const errData = await res.json();
       if (errData.detail) errorMessage = errData.detail;
+      errorBody = errData;
+    } catch {
+      try {
+        errorMessage = await res.text();
       } catch {
-        try {
-          errorMessage = await res.text();
-        } catch {
-          errorMessage = `Request failed with status ${res.status}`;
-        }
+        errorMessage = `Request failed with status ${res.status}`;
       }
-    throw new Error(errorMessage);
+    }
+    const err = new Error(
+      typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage)
+    );
+    err.status = res.status;
+    err.body = errorBody;
+    throw err;
   }
 
   const text = await res.text();

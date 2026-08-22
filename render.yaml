@@ -28,6 +28,10 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: FREE_DAILY_MEDIA_SCANS
+        value: "10"
+      - key: ADMIN_EMAILS
+        sync: false
       - key: FRONTEND_URL
         value: https://shieldai-web.onrender.com
 

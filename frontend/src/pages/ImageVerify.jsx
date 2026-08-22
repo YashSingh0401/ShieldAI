@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Upload, FileImage, ShieldAlert, CheckCircle, Info, Sliders, ChevronRight } from 'lucide-react';
 import { api } from '../api/client.js';
 import CertificateModal from '../components/CertificateModal';
+import QuotaReachedCard from '../components/QuotaReachedCard';
+import { FREE_DAILY_MEDIA_SCANS } from '../config.js';
 import './ImageVerify.css';
 
 export default function ImageVerify({ onVerify }) {
@@ -9,6 +11,7 @@ export default function ImageVerify({ onVerify }) {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState(null);
+  const [quotaReached, setQuotaReached] = useState(false);
   const [opacity, setOpacity] = useState(50);
   const [showCert, setShowCert] = useState(false);
 
@@ -33,6 +36,7 @@ export default function ImageVerify({ onVerify }) {
     setLoading(true);
     setLoadingStep(0);
     setResult(null);
+    setQuotaReached(false);
 
     const steps = [
       setTimeout(() => setLoadingStep(1), 300),
@@ -56,6 +60,11 @@ export default function ImageVerify({ onVerify }) {
       }
     } catch (err) {
       steps.forEach(clearTimeout);
+      if (err.status === 402 && err.body?.detail?.code === 'quota_exceeded') {
+        setQuotaReached(true);
+        setLoading(false);
+        return;
+      }
       console.error("Image verification failed:", err);
       alert(err.message || "Network error: Could not connect to the security backend.");
       setLoading(false);
@@ -141,6 +150,10 @@ export default function ImageVerify({ onVerify }) {
                 </div>
               </div>
             </div>
+          )}
+
+          {quotaReached && !loading && (
+            <QuotaReachedCard limit={FREE_DAILY_MEDIA_SCANS} />
           )}
 
           {/* Results Summary Info Panel */}

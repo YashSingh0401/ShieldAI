@@ -2,32 +2,9 @@
 
 Run with: pytest
 """
-import pytest
+# Shared fixtures (auth_headers, fake_url_analysis, client) live in conftest.py.
 
 from app import main as app_main
-from app.auth import create_session_token
-
-
-@pytest.fixture()
-def auth_headers():
-    token = create_session_token({
-        "sub": "test-user-123",
-        "email": "tester@shieldai.test",
-        "name": "Test User",
-        "picture": "",
-    })
-    return {"Authorization": f"Bearer {token}"}
-
-
-@pytest.fixture()
-def fake_url_analysis(monkeypatch):
-    monkeypatch.setattr(app_main, "analyze_url", lambda url: {
-        "url": url,
-        "is_clean": False,
-        "risk_score": 92,
-        "risk_level": "High Risk - Phishing Suspected",
-        "indicators": ["Suspicious TLD", "No HTTPS"],
-    })
 
 
 # ─── Health ───────────────────────────────────────────────────────────────────
@@ -60,7 +37,7 @@ def test_verify_url_requires_query_param(client):
 
 
 def test_verify_url_saves_history(client, auth_headers, fake_url_analysis):
-    client.get("/verify/url", params={"url": "http://example-scam.test"})
+    client.get("/verify/url", params={"url": "http://example-scam.test"}, headers=auth_headers)
     res = client.get("/verify/history", headers=auth_headers)
     assert res.status_code == 200
     rows = [r for r in res.json() if r["target"] == "http://example-scam.test"]
@@ -109,7 +86,7 @@ def test_verify_history_requires_auth(client):
 
 
 def test_verify_history_returns_rows(client, auth_headers, fake_url_analysis):
-    client.get("/verify/url", params={"url": "http://history-scan.test"})
+    client.get("/verify/url", params={"url": "http://history-scan.test"}, headers=auth_headers)
     res = client.get("/verify/history", headers=auth_headers)
     assert res.status_code == 200
     rows = res.json()
@@ -120,7 +97,7 @@ def test_verify_history_returns_rows(client, auth_headers, fake_url_analysis):
 
 
 def test_verify_history_filter_by_scan_type(client, auth_headers, fake_url_analysis):
-    client.get("/verify/url", params={"url": "http://filter-scan.test"})
+    client.get("/verify/url", params={"url": "http://filter-scan.test"}, headers=auth_headers)
     res = client.get("/verify/history", params={"scan_type": "image"}, headers=auth_headers)
     assert res.status_code == 200
     assert res.json() == []

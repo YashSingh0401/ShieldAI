@@ -80,3 +80,13 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired session token",
         )
+
+
+def get_optional_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Like get_current_user, but returns None for anonymous requests instead of 401."""
+    if credentials is None or not credentials.credentials:
+        return None
+    try:
+        return get_current_user(credentials)
+    except HTTPException:
+        return None

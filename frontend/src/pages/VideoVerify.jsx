@@ -2,6 +2,8 @@ import React, { useState, useRef } from 'react';
 import { Upload, Film, ShieldAlert, CheckCircle, ChevronRight, Sliders, Play, RotateCw, Pause, AlertTriangle } from 'lucide-react';
 import { api } from '../api/client.js';
 import CertificateModal from '../components/CertificateModal';
+import QuotaReachedCard from '../components/QuotaReachedCard';
+import { FREE_DAILY_MEDIA_SCANS } from '../config.js';
 import './VideoVerify.css';
 
 export default function VideoVerify({ onVerify }) {
@@ -9,6 +11,7 @@ export default function VideoVerify({ onVerify }) {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState(null);
+  const [quotaReached, setQuotaReached] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [videoUrl, setVideoUrl] = useState(null);
   const [showCert, setShowCert] = useState(false);
@@ -35,6 +38,7 @@ export default function VideoVerify({ onVerify }) {
     setLoading(true);
     setLoadingStep(0);
     setResult(null);
+    setQuotaReached(false);
     setIsPlaying(false);
 
     // Create preview URL for uploaded video
@@ -65,6 +69,11 @@ export default function VideoVerify({ onVerify }) {
       }
     } catch (err) {
       steps.forEach(clearTimeout);
+      if (err.status === 402 && err.body?.detail?.code === 'quota_exceeded') {
+        setQuotaReached(true);
+        setLoading(false);
+        return;
+      }
       console.error("Video verification failed:", err);
       alert(err.message || "Network error: Could not connect to the security backend.");
       setLoading(false);
@@ -162,6 +171,10 @@ export default function VideoVerify({ onVerify }) {
                 </div>
               </div>
             </div>
+          )}
+
+          {quotaReached && !loading && (
+            <QuotaReachedCard limit={FREE_DAILY_MEDIA_SCANS} />
           )}
 
           {/* Results Summary Info Panel */}

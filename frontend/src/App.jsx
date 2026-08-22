@@ -9,6 +9,8 @@ import Landing from './pages/Landing';
 import VideoVerify from './pages/VideoVerify';
 import AudioVerify from './pages/AudioVerify';
 import ScanHistory from './pages/ScanHistory';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 import { getStoredUser } from './api/client.js';
 import './App.css';
 
@@ -42,6 +44,10 @@ function App() {
         
         {/* Public Login Route */}
         <Route path="/login" element={<Login onLogin={handleLogin} user={user} />} />
+
+        {/* Public Legal Routes */}
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
 
         {/* Protected Console Workspace Routes */}
         <Route

@@ -687,3 +687,31 @@
     justify-content: center;
   }
 }
+
+/* Legal footer bar */
+.legal-footer-bar {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 24px;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #8a93a5);
+  border-top: 1px solid var(--border-glass, rgba(255,255,255,0.08));
+}
+
+.legal-footer-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.legal-footer-links a {
+  color: var(--indigo, #6366f1);
+  text-decoration: none;
+}
+
+.legal-footer-links a:hover {
+  text-decoration: underline;
+}
