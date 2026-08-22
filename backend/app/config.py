@@ -5,6 +5,8 @@ load_dotenv()
 
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./database.db")
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 JWT_SECRET = os.getenv("JWT_SECRET", "")

@@ -4,9 +4,13 @@ from sqlalchemy.orm import sessionmaker
 
 from .config import DATABASE_URL
 
-# Create engine with SQLite multi-thread checking bypassed
+# Create engine (bypassing multi-thread checks only for SQLite)
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+
 engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
+    DATABASE_URL, connect_args=connect_args
 )
 
 # Listen for database connections and execute SQLite optimizations (SQLite only)
