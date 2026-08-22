@@ -2,6 +2,10 @@
 # 1. Push to GitHub, go to dashboard.render.com -> New -> Blueprint.
 # 2. Set the "sync: false" secrets (GOOGLE_CLIENT_ID, JWT_SECRET, VITE_GOOGLE_CLIENT_ID).
 # 3. Free-tier Postgres will be provisioned automatically.
+#
+# IMPORTANT: If Render appends a suffix to a service name (e.g. shieldai-api-18a4),
+# update FRONTEND_URL / VITE_API_URL below AND in each service's Environment tab
+# to match the "Available at ..." primary URL shown on the service page.
 
 databases:
   - name: shieldai-db
