@@ -30,7 +30,6 @@ services:
   - type: web
     name: shieldai-web
     runtime: static
-    plan: free
     buildCommand: cd frontend && npm ci && npm run build
     staticPublishPath: frontend/dist
     envVars:
