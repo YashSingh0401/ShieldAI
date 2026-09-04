@@ -117,6 +117,206 @@ def _pcm_stats(samples: np.ndarray) -> dict:
     }
 
 
+# ─────────────────────────────────────────────────────────────────
+# ENGINE C — AASIST-Inspired Voice Clone & Vocoder Detector (pure DSP)
+# ─────────────────────────────────────────────────────────────────
+
+def detect_voice_clone_advanced(samples: np.ndarray, sample_rate: int = 16000) -> dict:
+    """
+    AASIST-inspired pure-DSP voice clone detector (no external model weights).
+
+    Layers:
+      1. Cepstral Liftering Residual — vocoders produce unnaturally smooth MFCC trajectories.
+      2. Harmonic-to-Noise Ratio (HNR) — real voice 15-25 dB; vocoders >30 or <8.
+      3. Sub-band Energy Distribution — TTS over-generates 6-8 kHz.
+      4. Glottal Pulse Irregularity (jitter) — real 0.3-1.5%, vocoders ~0.
+
+    Returns {voice_clone_risk, hnr_db, cepstral_delta_variance, subband_highfreq_ratio, jitter_pct, vocoder_signals[]}
+    """
+    try:
+        if samples is None or samples.size < 1600:
+            return {
+                "voice_clone_risk": 5,
+                "hnr_db": 0.0,
+                "cepstral_delta_variance": 0.0,
+                "subband_highfreq_ratio": 0.0,
+                "jitter_pct": 0.0,
+                "vocoder_signals": ["Insufficient samples for voice clone analysis."],
+            }
+
+        # Normalise to float -1..1 for DSP
+        s = samples.astype(np.float64)
+        if np.max(np.abs(s)) > 1.0:
+            s = s / 32768.0
+        n = s.size
+        sr = int(sample_rate) if sample_rate else 16000
+
+        # ── 1. Cepstral delta variance (manual MFCC proxy) ─────────
+        frame = 512
+        hop = 256
+        n_frames = max(1, (n - frame) // hop)
+        n_frames = min(n_frames, 80)
+        cepstra = []
+        for i in range(n_frames):
+            seg = s[i*hop:i*hop+frame] * np.hanning(frame)
+            mag = np.abs(np.fft.rfft(seg, n=512)) + 1e-12
+            log_mag = np.log(mag)
+            # DCT-II as cepstral transform (keep 20 coeffs)
+            cep = np.fft.rfft(log_mag).real[:20]
+            cepstra.append(cep)
+        cepstra = np.array(cepstra)  # [T, 20]
+        # Delta variance in mid bands (coeffs 2-8 ~ 2-4 kHz proxy)
+        if cepstra.shape[0] >= 3:
+            deltas = np.diff(cepstra, axis=0)
+            mid_deltas = deltas[:, 2:9] if deltas.shape[1] >= 9 else deltas[:, 2:]
+            cepstral_delta_variance = float(np.mean(np.var(mid_deltas, axis=0))) if mid_deltas.size else 0.0
+        else:
+            cepstral_delta_variance = 0.0
+
+        # ── 2. HNR via autocorrelation peak ─────────────────────────
+        # Use middle 1-2 sec for stability
+        mid = s[max(0, n//2 - sr): min(n, n//2 + sr)]
+        if mid.size < sr//2:
+            mid = s
+        mid = mid - np.mean(mid)
+        mid = mid / (np.max(np.abs(mid)) + 1e-9)
+        # Normalized autocorrelation
+        try:
+            corr = np.correlate(mid, mid, mode='full')
+            corr = corr[len(corr)//2:]
+            corr = corr / (corr[0] + 1e-12)
+            # Search pitch lag 40..400 samples (40-400 Hz at 16kHz)
+            lo, hi = max(40, sr//400), min(400, sr//40, len(corr)-1)
+            if hi > lo:
+                peak = float(np.max(corr[lo:hi]))
+                peak = np.clip(peak, 1e-4, 0.9999)
+                hnr_db = float(10 * np.log10(peak / (1 - peak + 1e-12)))
+                hnr_db = np.clip(hnr_db, -10, 40)
+            else:
+                hnr_db = 15.0
+                peak = 0.5
+        except Exception:
+            hnr_db = 15.0
+            peak = 0.5
+
+        # ── 3. Sub-band energy 6-8 kHz ratio ──────────────────────
+        try:
+            # Zero-pad to next pow2 for stable bins
+            mag_full = np.abs(np.fft.rfft(s * np.hanning(n))) ** 2 + 1e-12
+            freqs = np.fft.rfftfreq(n, d=1.0/sr)
+            total_energy = float(np.sum(mag_full))
+            mask_high = (freqs >= 6000) & (freqs <= 8000)
+            high_energy = float(np.sum(mag_full[mask_high]))
+            subband_highfreq_ratio = float(high_energy / (total_energy + 1e-12))
+        except Exception:
+            subband_highfreq_ratio = 0.05
+
+        # ── 4. Glottal jitter (pulse interval irregularity) ───────
+        try:
+            # Find positive peaks above 0.25*max
+            thresh = 0.25 * np.max(np.abs(s))
+            # Simple peak picker: local maxima
+            # Use 5ms min spacing (80 samples @16k)
+            min_dist = max(40, sr // 200)
+            peaks = []
+            for i in range(1, n-1):
+                if s[i] > thresh and s[i] > s[i-1] and s[i] > s[i+1]:
+                    if not peaks or (i - peaks[-1]) >= min_dist:
+                        peaks.append(i)
+                    elif s[i] > s[peaks[-1]]:
+                        peaks[-1] = i
+            if len(peaks) >= 4:
+                intervals = np.diff(np.array(peaks, dtype=float))
+                mean_iv = float(np.mean(intervals))
+                if mean_iv > 1e-6:
+                    jitter_pct = float(np.std(intervals) / mean_iv * 100.0)
+                else:
+                    jitter_pct = 0.0
+                jitter_pct = float(np.clip(jitter_pct, 0, 10))
+            else:
+                # Fallback: zero-cross interval jitter
+                zc = np.where(np.diff(np.signbit(s).astype(int)) != 0)[0]
+                if len(zc) >= 6:
+                    iv = np.diff(zc.astype(float))
+                    jitter_pct = float(np.std(iv) / (np.mean(iv)+1e-9) * 100.0)
+                    jitter_pct = float(np.clip(jitter_pct, 0, 10))
+                else:
+                    jitter_pct = 0.0
+        except Exception:
+            jitter_pct = 0.0
+
+        # ── Scoring ───────────────────────────────────────────────
+        vocoder_signals = []
+        risk = 5
+
+        # Cepstral liftering: synthetic -> near-zero delta variance
+        if cepstral_delta_variance < 0.002:
+            risk += 35
+            vocoder_signals.append(f"Near-zero cepstral delta variance ({cepstral_delta_variance:.4f}) — vocoder smooth trajectory (ElevenLabs/XTTS signature).")
+        elif cepstral_delta_variance < 0.008:
+            risk += 18
+            vocoder_signals.append(f"Low cepstral delta variance ({cepstral_delta_variance:.4f}) — possible neural vocoder smoothing.")
+        else:
+            vocoder_signals.append(f"Natural cepstral trajectory variation ({cepstral_delta_variance:.4f}).")
+
+        # HNR
+        if hnr_db > 30:
+            risk += 25
+            vocoder_signals.append(f"Excessive HNR ({hnr_db:.1f} dB) — too-perfect harmonic structure (neural synthesis).")
+        elif hnr_db < 8:
+            risk += 20
+            vocoder_signals.append(f"Degraded HNR ({hnr_db:.1f} dB) — noisy synthesis (GAN artifact).")
+        elif 15 <= hnr_db <= 25:
+            vocoder_signals.append(f"Natural HNR ({hnr_db:.1f} dB) — human phonation range.")
+        else:
+            vocoder_signals.append(f"HNR {hnr_db:.1f} dB — borderline natural range.")
+
+        # Sub-band
+        if subband_highfreq_ratio > 0.18:
+            risk += 20
+            vocoder_signals.append(f"Elevated 6-8 kHz energy ratio ({subband_highfreq_ratio:.3f}) — TTS articulation over-generation.")
+        elif subband_highfreq_ratio > 0.12:
+            risk += 10
+            vocoder_signals.append(f"Moderate high-frequency boost ({subband_highfreq_ratio:.3f}).")
+        else:
+            vocoder_signals.append(f"Natural high-frequency roll-off ({subband_highfreq_ratio:.3f}).")
+
+        # Jitter
+        if jitter_pct < 0.20:
+            risk += 20
+            vocoder_signals.append(f"Near-zero glottal jitter ({jitter_pct:.3f}%) — perfectly periodic (vocoder).")
+        elif jitter_pct < 0.30:
+            risk += 10
+            vocoder_signals.append(f"Low jitter ({jitter_pct:.3f}%) — below human micro-tremor range (0.3-1.5%).")
+        elif 0.3 <= jitter_pct <= 1.5:
+            vocoder_signals.append(f"Natural glottal jitter ({jitter_pct:.3f}%) — human muscle tremor signature.")
+        else:
+            # >1.5 can be natural expressive or GAN glitch — mild flag if >4
+            if jitter_pct > 4.0:
+                risk += 8
+                vocoder_signals.append(f"High jitter ({jitter_pct:.3f}%) — irregular phonation (possible GAN artifact).")
+
+        risk = int(np.clip(risk, 5, 95))
+
+        return {
+            "voice_clone_risk": risk,
+            "hnr_db": round(float(hnr_db), 2),
+            "cepstral_delta_variance": round(float(cepstral_delta_variance), 5),
+            "subband_highfreq_ratio": round(float(subband_highfreq_ratio), 4),
+            "jitter_pct": round(float(jitter_pct), 3),
+            "vocoder_signals": vocoder_signals,
+        }
+    except Exception as e:
+        return {
+            "voice_clone_risk": 5,
+            "hnr_db": 0.0,
+            "cepstral_delta_variance": 0.0,
+            "subband_highfreq_ratio": 0.0,
+            "jitter_pct": 0.0,
+            "vocoder_signals": [f"Voice clone analysis error: {e}"],
+        }
+
+
 def analyze_audio(filename: str, file_bytes: bytes) -> dict:
     """
     Analyzes audio using real decoded PCM data (never synthesized samples).
@@ -164,6 +364,12 @@ def analyze_audio(filename: str, file_bytes: bytes) -> dict:
             "voice_clone_probability": float(risk),
             "compression_warnings": compression_warnings,
             "anomalies": anomalies,
+            "voice_clone_risk": int(risk),
+            "hnr_db": 0.0,
+            "cepstral_delta_variance": 0.0,
+            "subband_highfreq_ratio": 0.0,
+            "jitter_pct": 0.0,
+            "vocoder_signals": ["Analysis unavailable — decoding failed."],
         }
 
     stats = _pcm_stats(samples)
@@ -214,6 +420,19 @@ def analyze_audio(filename: str, file_bytes: bytes) -> dict:
     if file_size_kb > 10000:
         compression_warnings.append(f"Large file ({file_size_kb:.0f} KB) — may contain hidden data streams.")
 
+    # ── Engine C — Voice clone advanced ──────────────────────────
+    try:
+        vc = detect_voice_clone_advanced(samples, 16000)
+        # Fuse vc risk as secondary (weighted, does not fully override prosody risk)
+        fused_risk = min(98, max(5, int(round(risk * 0.7 + vc["voice_clone_risk"] * 0.3))))
+        # Append vocoder signals to anomalies for transparency
+        for sig in vc.get("vocoder_signals", []):
+            if "Natural" not in sig:
+                anomalies.append(sig)
+        risk = fused_risk
+    except Exception as e:
+        vc = {"voice_clone_risk": 5, "hnr_db": 0.0, "cepstral_delta_variance": 0.0, "subband_highfreq_ratio": 0.0, "jitter_pct": 0.0, "vocoder_signals": [f"VC fusion error: {e}"]}
+
     risk = min(98, max(5, risk))
     is_clean = risk < 50
     if risk >= 75:
@@ -244,4 +463,10 @@ def analyze_audio(filename: str, file_bytes: bytes) -> dict:
         "voice_clone_probability": float(risk),
         "compression_warnings": compression_warnings,
         "anomalies": anomalies,
+        "voice_clone_risk": int(vc.get("voice_clone_risk", 5)),
+        "hnr_db": float(vc.get("hnr_db", 0.0)),
+        "cepstral_delta_variance": float(vc.get("cepstral_delta_variance", 0.0)),
+        "subband_highfreq_ratio": float(vc.get("subband_highfreq_ratio", 0.0)),
+        "jitter_pct": float(vc.get("jitter_pct", 0.0)),
+        "vocoder_signals": list(vc.get("vocoder_signals", [])),
     }

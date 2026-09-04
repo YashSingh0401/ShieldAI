@@ -10,6 +10,14 @@ jobs:
   backend:
     name: Backend tests
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 5
     defaults:
       run:
         working-directory: backend
@@ -24,8 +32,27 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Install dependencies
         run: pip install -r requirements.txt pytest
-      - name: Run tests
+      - name: Alembic migrate (composite index)
+        run: alembic upgrade head
+        env:
+          DATABASE_URL: sqlite:///./test_ci.db
+      - name: Run tests (memory + redis limiter)
         run: python -m pytest -q
+        env:
+          PYTEST_RUNNING: "1"
+      - name: Run tests with Redis limiter
+        run: |
+          REDIS_URL=redis://localhost:6379/0 python -m pytest -q -k "test_verify_url_rate_limited or test_root"
+        env:
+          PYTEST_RUNNING: "1"
+      - name: Deep health check
+        run: |
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 8001 &
+          sleep 6
+          curl -sf http://127.0.0.1:8001/health | grep -q '"status":"ok"'
+          curl -sf http://127.0.0.1:8001/health/deep | grep -q '"database":"ok"'
+          curl -sf "http://127.0.0.1:8001/verify/url?url=example.com" | grep -q '"risk_score"'
+          pkill -f "uvicorn app.main:app --host 127.0.0.1 --port 8001" || true
       - name: Regenerate benchmark samples and run benchmark
         run: python benchmark_data/generate_samples.py && python benchmark.py
 
@@ -53,11 +80,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build backend image
-        run: docker build -t shieldai-backend backend/
+        run: |
+          docker build -t shieldai-backend backend/
+          docker image ls shieldai-backend
       - name: Smoke test container
         run: |
           docker run --rm -d -p 8000:8000 --name shieldai-test shieldai-backend
-          sleep 8
-          curl -sf http://127.0.0.1:8000/health | grep -q '"status":"ok"'
+          for i in 1 2 3 4 5 6; do curl -sf http://127.0.0.1:8000/health && break || sleep 3; done
+          curl -sf http://127.0.0.1:8000/health/deep | grep -q '"database":"ok"'
+          curl -sf -D - http://127.0.0.1:8000/health | grep -qi "X-Request-ID"
           curl -sf "http://127.0.0.1:8000/verify/url?url=example.com" | grep -q '"risk_score"'
           docker stop shieldai-test

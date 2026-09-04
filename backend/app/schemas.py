@@ -58,6 +58,10 @@ class GoogleAuthRequest(BaseModel):
     credential: str = Field(..., description="Google OAuth credential JWT token")
 
 
+class ImageUrlVerifyRequest(BaseModel):
+    url: str = Field(..., min_length=4, max_length=2000, description="Public image URL to verify")
+
+
 class ScanHistoryResponse(BaseModel):
     id: int
     scan_type: str
@@ -82,6 +86,14 @@ class AudioVerifyResponse(BaseModel):
     voice_clone_probability: float
     compression_warnings: list[str]
     anomalies: list[str]
+    # Engine C — Voice Clone advanced (optional, defaults for backwards compat)
+    voice_clone_risk: Optional[float] = None
+    hnr_db: Optional[float] = None
+    cepstral_delta_variance: Optional[float] = None
+    subband_highfreq_ratio: Optional[float] = None
+    jitter_pct: Optional[float] = None
+    vocoder_signals: Optional[list[str]] = None
+    scan_id: Optional[int] = None
 
 
 class AuthResponse(BaseModel):

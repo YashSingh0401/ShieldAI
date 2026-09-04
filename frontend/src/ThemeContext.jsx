@@ -4,14 +4,18 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
-  const [theme] = useState('light');
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('shield_theme') || 'dark';
+  });
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'light');
-    localStorage.setItem('shield_theme', 'light');
-  }, []);
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('shield_theme', theme);
+  }, [theme]);
 
-  const toggleTheme = () => {};
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

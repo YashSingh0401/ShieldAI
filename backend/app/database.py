@@ -48,9 +48,20 @@ def ensure_schema_upgrades():
 
     if inspector.has_table("scan_history"):
         _add_column("scan_history", "user_email VARCHAR", "user_email")
+        _add_column("scan_history", "scan_payload TEXT", "scan_payload")
     if inspector.has_table("scam_reports"):
         # NOT NULL DEFAULT keeps pre-existing reports visible to the public feed.
         _add_column("scam_reports", "is_hidden BOOLEAN NOT NULL DEFAULT '0'", "is_hidden")
+
+    # Composite index for quota performance — created if missing (fallback when alembic not run, e.g., SQLite)
+    if inspector.has_table("scan_history"):
+        try:
+            existing_indexes = {idx["name"] for idx in inspector.get_indexes("scan_history")}
+            if "ix_scan_history_user_type_ts" not in existing_indexes:
+                with engine.begin() as conn:
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_scan_history_user_type_ts ON scan_history (user_email, scan_type, timestamp)"))
+        except Exception:
+            pass
 
 
 # FastAPI dependency to yield database sessions

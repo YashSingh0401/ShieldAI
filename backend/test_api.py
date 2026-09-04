@@ -4,6 +4,9 @@ Run with: pytest
 """
 # Shared fixtures (auth_headers, fake_url_analysis, client) live in conftest.py.
 
+import io
+from PIL import Image
+
 from app import main as app_main
 
 
@@ -120,6 +123,116 @@ def test_verify_image_rejects_wrong_content_type(client, auth_headers):
     assert "Unsupported file type" in res.json()["detail"]
 
 
+# ─── Octet-stream / magic-byte acceptance tests ────────────────────────────
+
+
+def _make_png_bytes():
+    """Generate minimal valid PNG in memory."""
+    img = Image.new("RGB", (2, 2), color=(255, 0, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _make_jpeg_bytes():
+    """Generate minimal valid JPEG in memory."""
+    img = Image.new("RGB", (2, 2), color=(0, 128, 255))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+def _make_webp_bytes():
+    """Generate minimal valid WebP in memory."""
+    img = Image.new("RGB", (2, 2), color=(0, 255, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="WEBP")
+    return buf.getvalue()
+
+
+def _mock_cv_engine(monkeypatch):
+    """Stub out the heavy CV pipeline so endpoint returns without a real image."""
+    from app import main as app_main
+    monkeypatch.setattr(app_main, "extract_exif", lambda b: {})
+    monkeypatch.setattr(
+        app_main,
+        "perform_ela",
+        lambda b: ("data:image/jpeg;base64,AAAA", 5, ["test-only"]),
+    )
+    monkeypatch.setattr(
+        app_main,
+        "detect_ai_generation",
+        lambda b, fn, md: (False, 10, []),
+    )
+
+
+def test_verify_image_accepts_octet_stream_png_no_ext(client, auth_headers, monkeypatch):
+    _mock_cv_engine(monkeypatch)
+    png = _make_png_bytes()
+    res = client.post(
+        "/verify/image",
+        files={"file": ("blob", png, "application/octet-stream")},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    assert res.json()["is_clean"] is True
+
+
+def test_verify_image_accepts_octet_stream_jpeg_clipboard(client, auth_headers, monkeypatch):
+    _mock_cv_engine(monkeypatch)
+    jpg = _make_jpeg_bytes()
+    res = client.post(
+        "/verify/image",
+        files={"file": ("image", jpg, "application/octet-stream")},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    assert res.json()["risk_score"] == 5
+
+
+def test_verify_image_accepts_octet_stream_webp(client, auth_headers, monkeypatch):
+    _mock_cv_engine(monkeypatch)
+    webp = _make_webp_bytes()
+    res = client.post(
+        "/verify/image",
+        files={"file": ("screenshot", webp, "application/octet-stream")},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    assert res.json()["filename"] == "screenshot"
+
+
+def test_verify_image_rejects_octet_stream_non_image(client, auth_headers):
+    res = client.post(
+        "/verify/image",
+        files={"file": ("blob", b"not an image at all", "application/octet-stream")},
+        headers=auth_headers,
+    )
+    assert res.status_code == 400
+    assert "Unsupported file type" in res.json()["detail"]
+
+
+def test_verify_image_rejects_empty_file(client, auth_headers):
+    res = client.post(
+        "/verify/image",
+        files={"file": ("empty.png", b"", "image/png")},
+        headers=auth_headers,
+    )
+    assert res.status_code == 400
+    assert "Empty file" in res.json()["detail"]
+
+
+def test_verify_image_accepts_empty_content_type_with_ext(client, auth_headers, monkeypatch):
+    _mock_cv_engine(monkeypatch)
+    png = _make_png_bytes()
+    res = client.post(
+        "/verify/image",
+        files={"file": ("photo.png", png, None)},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+
+
 def test_verify_video_requires_auth(client):
     res = client.post("/verify/video", files={"file": ("a.mp4", b"x", "video/mp4")})
     assert res.status_code == 401
@@ -203,3 +316,56 @@ def test_get_reports_search_filter(client, auth_headers):
     assert len(found.json()) == 1
     none = client.get("/reports", params={"q": "NoSuchTermzzz"})
     assert none.json() == []
+
+
+def test_verify_image_url_ssrf_blocked(client, auth_headers):
+    # Localhost / internal addresses must be rejected with 400
+    res = client.post(
+        "/verify/image-url",
+        json={"url": "http://127.0.0.1:8000/internal-secret.png"},
+        headers=auth_headers
+    )
+    assert res.status_code == 400
+    assert "forbidden" in res.json()["detail"].lower() or "blocked" in res.json()["detail"].lower()
+
+
+def test_verify_report_pdf(client, auth_headers):
+    # 1. Trigger an image verification scan
+    img = Image.new("RGB", (64, 64), color="blue")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    buf.seek(0)
+
+    scan_res = client.post(
+        "/verify/image",
+        files={"file": ("report_test.jpg", buf.getvalue(), "image/jpeg")},
+        headers=auth_headers
+    )
+    assert scan_res.status_code == 200
+    scan_id = scan_res.json()["scan_id"]
+
+    # 2. Request PDF report for this scan
+    rep_res = client.get(f"/verify/report/{scan_id}", headers=auth_headers)
+    assert rep_res.status_code == 200
+    assert rep_res.headers["content-type"] == "application/pdf"
+    assert rep_res.content[:4] == b"%PDF"
+
+
+def test_websocket_scan_progress(client):
+    with client.websocket_connect("/ws/scan-progress") as websocket:
+        websocket.send_text('{"type": "video"}')
+        data = websocket.receive_json()
+        assert "progress" in data
+        assert "stage" in data
+        assert data["step"] >= 1
+
+
+def test_user_profile_stats(client, auth_headers):
+    res = client.get("/user/profile", headers=auth_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert "email" in data
+    assert "quota" in data
+    assert "stats" in data
+    assert "total_scans" in data["stats"]
+    assert "threats_flagged" in data["stats"]

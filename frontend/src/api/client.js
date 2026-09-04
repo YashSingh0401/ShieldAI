@@ -57,10 +57,22 @@ async function request(endpoint, options = {}) {
   if (!res.ok) {
     let errorMessage = `Request failed with status ${res.status}`;
     let errorBody = null;
+    let isQuotaExceeded = res.status === 402;
     try {
       const errData = await res.json();
-      if (errData.detail) errorMessage = errData.detail;
       errorBody = errData;
+      if (errData && errData.detail) {
+        if (typeof errData.detail === 'string') {
+          errorMessage = errData.detail;
+        } else if (typeof errData.detail === 'object') {
+          if (errData.detail.message) {
+            errorMessage = errData.detail.message;
+          }
+          if (errData.detail.code === 'quota_exceeded') {
+            isQuotaExceeded = true;
+          }
+        }
+      }
     } catch {
       try {
         errorMessage = await res.text();
@@ -73,6 +85,8 @@ async function request(endpoint, options = {}) {
     );
     err.status = res.status;
     err.body = errorBody;
+    err.detail = errorBody?.detail;
+    err.isQuotaExceeded = isQuotaExceeded;
     throw err;
   }
 

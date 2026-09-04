@@ -57,7 +57,7 @@ Non-admins get `403`; anonymous calls get `401`. Hidden reports disappear from `
 
 | Control | Env var | Default | Effect |
 |---|---|---|---|
-| Daily media scans/user | `FREE_DAILY_MEDIA_SCANS` | `10` | image+video+audio combined, resets midnight UTC. Exceeding → HTTP 402 `quota_exceeded` |
+| Daily media scans/user | `FREE_DAILY_MEDIA_SCANS` | `999999` (unlimited) | v3.1: unlimited by default. Set `<900k` (e.g. `10`) to re-enable 402 `quota_exceeded` guard |
 | URL scan rate limit | (code) | 30/min/IP | Public quick-scan endpoint |
 | Media upload rate limit | (code) | 6/min/IP | Per scanner endpoint |
 | Report/comment writes | (code) | 20/min/IP | Community feed |

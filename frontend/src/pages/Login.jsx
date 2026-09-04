@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Lock, ArrowRight, ShieldAlert, Zap } from 'lucide-react';
 import { api, setToken, setStoredUser } from '../api/client.js';
 import './Login.css';
 
@@ -36,6 +36,16 @@ export default function Login({ onLogin, user }) {
     }
   };
 
+  const handleGuestLogin = () => {
+    const guestUser = {
+      id: "guest-user",
+      name: "Security Guest User",
+      email: "guest@shieldai.internal",
+    };
+    onLogin(guestUser);
+    navigate('/dashboard');
+  };
+
   useEffect(() => {
     const initGoogleOAuth = () => {
       /* global google */
@@ -53,7 +63,7 @@ export default function Login({ onLogin, user }) {
             { 
               theme: "filled_blue", 
               size: "large",
-              width: 360,
+              width: 340,
               text: "signin_with",
               shape: "rectangular"
             }
@@ -66,7 +76,6 @@ export default function Login({ onLogin, user }) {
 
     initGoogleOAuth();
 
-    // Set up polling checks in case the external script finishes loading asynchronously
     const pollTimer = setInterval(() => {
       if (typeof google !== 'undefined') {
         initGoogleOAuth();
@@ -79,31 +88,50 @@ export default function Login({ onLogin, user }) {
 
   return (
     <div className="login-page-container">
-      <div className="login-card animate-fade-in">
+      <div className="login-card glass-card animate-fade-in">
         <div className="login-header">
           <div className="login-logo">
-            <ShieldCheck size={32} className="logo-icon" />
+            <ShieldCheck size={36} className="logo-icon" />
             <h1 className="login-title">Shield<span className="brand-highlight">.AI</span></h1>
           </div>
           <p className="login-subtitle">
-            Sign in with Google to access your security control panel
+            Enterprise Digital Assets & Media Forensics Portal
           </p>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
+        <div className="login-oauth-wrapper">
           <div id="google-signin-btn-div"></div>
         </div>
 
         {authError && (
-          <div style={{ color: 'var(--rose)', fontSize: '0.85rem', textAlign: 'center', marginBottom: '12px' }}>
+          <div className="auth-error-banner">
             {authError}
           </div>
         )}
+
+        <div className="divider-line">Or explore console</div>
+
+        <button onClick={handleGuestLogin} className="btn btn-secondary guest-btn">
+          <Lock size={15} />
+          <span>Enter as Guest Inspector</span>
+          <ArrowRight size={14} />
+        </button>
+
+        <div className="login-feature-list">
+          <div className="login-feature-item">
+            <ShieldAlert size={14} className="feature-icon" />
+            <span>ELA Image & Video Splice Forensics</span>
+          </div>
+          <div className="login-feature-item">
+            <Zap size={14} className="feature-icon" />
+            <span>Shannon Entropy Phishing Protection</span>
+          </div>
+        </div>
       </div>
 
       {googleLoading && (
         <div className="google-oauth-overlay">
-          <div className="oauth-popup">
+          <div className="oauth-popup glass-card">
             <div className="spinner"></div>
             <h4>{loadingTitle}</h4>
             <p>{loadingMessage}</p>

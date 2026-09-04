@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldCheck, ShieldAlert, Shield, Globe, Search, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../api/client.js';
 import CertificateModal from '../components/CertificateModal';
 import './LinkScan.css';
@@ -19,6 +20,7 @@ export default function LinkScan({ onScan }) {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    toast.success("JSON report exported successfully!");
   };
 
   const exportPDF = () => {
@@ -33,6 +35,12 @@ export default function LinkScan({ onScan }) {
       const data = await api.get('/verify/url', { url });
       setResult(data);
       setLoading(false);
+      toast.success(
+        data.levelClass === 'safe'
+          ? "Domain verified: Clean & safe protocol"
+          : `Risk detected: ${data.risk_level}`,
+        { icon: data.levelClass === 'safe' ? '🛡️' : '⚠️' }
+      );
 
       if (onScan) {
         onScan({
@@ -44,7 +52,7 @@ export default function LinkScan({ onScan }) {
       }
     } catch (err) {
       console.error("URL scan failed:", err);
-      alert(err.message || "Network error: Could not connect to the security backend.");
+      toast.error(err.message || "Network error: Could not connect to the security backend.");
       setLoading(false);
     }
   };
@@ -162,6 +170,60 @@ export default function LinkScan({ onScan }) {
                   Entropy measures randomness. Higher values (&gt; 3.8) are common in generated domain hacks or obfuscated paths.
                 </span>
               </div>
+
+              {/* Engine E — Semantic Phish */}
+              {result.semantic_phish && (
+                <div style={{ marginTop: '16px', padding: '14px', borderRadius: '10px', background: result.semantic_phish.phish_score > 40 ? 'rgba(244,63,94,0.06)' : 'rgba(16,185,129,0.04)', border: `1px solid ${result.semantic_phish.phish_score > 40 ? 'rgba(244,63,94,0.15)' : 'rgba(16,185,129,0.15)'}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0, color: result.semantic_phish.phish_score > 40 ? 'var(--rose)' : 'var(--emerald)' }}>Semantic Phish Analysis (Engine E)</h4>
+                    <span style={{ fontSize: '0.7rem', padding: '3px 8px', borderRadius: '10px', background: result.semantic_phish.phish_score > 40 ? 'rgba(244,63,94,0.15)' : 'rgba(16,185,129,0.15)', fontWeight: 700 }}>{result.semantic_phish.phish_score}% PHISH SCORE</span>
+                  </div>
+                  <ul style={{ margin: '0', paddingLeft: '16px', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {result.semantic_phish.phish_signals.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              {/* Engine H — Threat Intel */}
+              {result.threat_intel && (
+                <div style={{ marginTop: '16px', padding: '14px', borderRadius: '10px', background: 'var(--bg-widget-subtle)', border: '1px solid var(--border)', textAlign: 'left' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, margin: '0 0 10px', color: 'var(--text-primary)' }}>Threat Intelligence (Engine H)</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.8rem', marginBottom: '10px' }}>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Cert Age:</span>{' '}
+                      <span style={{ fontWeight: 700, color: result.threat_intel.cert_recent ? 'var(--rose)' : 'var(--emerald)' }}>
+                        {result.threat_intel.cert_age_days != null ? `${result.threat_intel.cert_age_days}d` : '—'}
+                      </span>
+                      {result.threat_intel.cert_recent && <span style={{ marginLeft: '6px', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '8px', background: 'rgba(244,63,94,0.15)', color: 'var(--rose)' }}>RECENT &lt;7d</span>}
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>URLhaus:</span>{' '}
+                      <span style={{ fontWeight: 700, color: result.threat_intel.urlhaus?.status === 'listed' ? 'var(--rose)' : 'var(--emerald)' }}>
+                        {result.threat_intel.urlhaus?.status === 'listed' ? `${result.threat_intel.urlhaus?.count ?? 0} hits` : result.threat_intel.urlhaus?.status || 'clean'}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>PhishTank:</span>{' '}
+                      <span style={{ fontWeight: 700 }}>{result.threat_intel.phishtank || 'unknown'}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Domain:</span> <span style={{ fontWeight: 600 }}>{result.threat_intel.domain}</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                    <ul style={{ margin: 0, paddingLeft: '16px', lineHeight: 1.5 }}>
+                      {(result.threat_intel.intel_signals || []).map((s, i) => <li key={i}>{s}</li>)}
+                    </ul>
+                  </div>
+                  {(result.live_meta?.ip_address || result.live_meta?.http_status) && (
+                    <div style={{ marginTop: '8px', fontSize: '0.75rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-glass)', paddingTop: '8px' }}>
+                      {result.live_meta.ip_address && <span style={{ marginRight: '12px' }}>IP: {result.live_meta.ip_address}</span>}
+                      {result.live_meta.http_status && <span>HTTP: {result.live_meta.http_status}</span>}
+                      {result.live_meta.redirects > 0 && <span style={{ marginLeft: '12px' }}>Redirects: {result.live_meta.redirects}</span>}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

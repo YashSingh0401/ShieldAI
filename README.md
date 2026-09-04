@@ -99,14 +99,14 @@ An end-to-end smoke test against a running server is available via `python e2e_s
 
 ---
 
-## 🆓 Free tier & limits
+## 🆓 Free tier & limits — v3.1 (Unlimited)
 
-shieldAI is **100% free — no accounts to pay for, no paid features**. To keep the free service fast and abuse-resistant:
+shieldAI is **100% free — no accounts to pay for, no paid features**. v3.1 removes the daily media scan cap:
 
-- **Media scans** (image / video / audio): 10 per user per day (resets midnight UTC). Exceeding it returns HTTP 402 `quota_exceeded` with a friendly message in the UI.
+- **Media scans** (image / video / audio): **unlimited** — no daily quota, no `402 quota_exceeded`. Abuse protection remains via per-IP rate limits (6/min media, 30/min URL).
 - **Link scans**: unlimited (subject to normal rate limiting).
 - **Community feed**: length-capped, spam-filtered, and moderated. Admins (configured via `ADMIN_EMAILS`) can hide/unhide or delete reports and comments via `/admin/*` endpoints.
-- Scan history is private per account.
+- Scan history is private per account. Legacy quota env `FREE_DAILY_MEDIA_SCANS` still exists for tests (set `<900k` to re-enable).
 
 ## ☁️ Deployment (Render, free tier)
 

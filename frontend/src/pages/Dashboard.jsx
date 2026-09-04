@@ -2,12 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Activity, Globe, FileImage, ShieldAlert, CheckCircle2, Film, Server, Cpu, Database, Volume2 } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { api } from '../api/client.js';
+import { useScrollAnimation } from '../hooks/useScrollAnimation';
 import './Dashboard.css';
 
 export default function Dashboard({ historyVersion = 0 }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Scroll-reveal refs for each major section
+  const [chartRef, chartVisible] = useScrollAnimation(0.1);
+  const [diagRef, diagVisible] = useScrollAnimation(0.1);
+  const [feedRef, feedVisible] = useScrollAnimation(0.1);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,7 +136,10 @@ export default function Dashboard({ historyVersion = 0 }) {
 
       <div className="dashboard-grid-layout">
         
-        <div className="glass-card sys-diagnostics-card animate-fade-in cascade-2">
+        <div
+          ref={diagRef}
+          className={`glass-card sys-diagnostics-card reveal-on-scroll ${diagVisible ? 'is-visible' : ''}`}
+        >
           <div className="card-header">
             <h3>System Status</h3>
             <span className="card-subtitle">Active validation services</span>
@@ -140,7 +149,10 @@ export default function Dashboard({ historyVersion = 0 }) {
             {systemStatus.map((service, idx) => {
               const ServiceIcon = service.icon;
               return (
-                <div key={idx} className="diagnostics-item">
+                <div
+                  key={idx}
+                  className={`diagnostics-item reveal-on-scroll stagger-${idx + 1} ${diagVisible ? 'is-visible' : ''}`}
+                >
                   <div className="diag-icon-wrapper">
                     <ServiceIcon size={16} />
                   </div>
@@ -158,7 +170,10 @@ export default function Dashboard({ historyVersion = 0 }) {
           </div>
         </div>
 
-        <div className="glass-card chart-card animate-fade-in cascade-3">
+        <div
+          ref={chartRef}
+          className={`glass-card chart-card reveal-on-scroll ${chartVisible ? 'is-visible' : ''}`}
+        >
           <div className="card-header">
             <h3>Scan Breakdown</h3>
             <span className="card-subtitle">Distribution across categories</span>
@@ -175,7 +190,11 @@ export default function Dashboard({ historyVersion = 0 }) {
                   <div className="bar-track">
                     <div 
                       className="bar-fill" 
-                      style={{ width: `${item.pct}%`, background: item.color }}
+                      style={{
+                        width: chartVisible ? `${item.pct}%` : '0%',
+                        background: item.color,
+                        transitionDelay: `${idx * 0.1}s`
+                      }}
                     ></div>
                   </div>
                 </div>
@@ -189,7 +208,10 @@ export default function Dashboard({ historyVersion = 0 }) {
           </div>
         </div>
 
-        <div className="glass-card live-feed-card animate-fade-in cascade-4">
+        <div
+          ref={feedRef}
+          className={`glass-card live-feed-card reveal-right ${feedVisible ? 'is-visible' : ''}`}
+        >
           <div className="card-header">
             <div className="feed-header-title">
               <span className="live-dot"></span>
@@ -201,8 +223,9 @@ export default function Dashboard({ historyVersion = 0 }) {
           <div className="feed-body">
             {loading ? (
               <div className="empty-feed-state">
-                <p>Loading scans…</p>
-                <span>Fetching your audit trail.</span>
+                <div className="skeleton skeleton-text wide" style={{margin: '8px auto'}}></div>
+                <div className="skeleton skeleton-text" style={{margin: '8px auto'}}></div>
+                <div className="skeleton skeleton-text short" style={{margin: '8px auto'}}></div>
               </div>
             ) : error ? (
               <div className="empty-feed-state">
@@ -217,9 +240,13 @@ export default function Dashboard({ historyVersion = 0 }) {
             ) : (
               <div className="activity-list">
                 {recentActivity.map((act, idx) => (
-                  <div key={idx} className={`activity-item status-${act.status}`}>
+                  <div
+                    key={idx}
+                    className={`activity-item status-${act.status}`}
+                    style={{ animationDelay: `${idx * 0.06}s` }}
+                  >
                     <div className="activity-icon-col">
-                      {act.type === 'url' && <Globe size={14} />}
+                      {act.type === 'url'   && <Globe size={14} />}
                       {act.type === 'image' && <FileImage size={14} />}
                       {act.type === 'video' && <Film size={14} />}
                       {act.type === 'audio' && <Volume2 size={14} />}

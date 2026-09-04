@@ -1,9 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Volume2, ShieldAlert, CheckCircle, ChevronRight, Play, Pause, AlertTriangle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../api/client.js';
 import CertificateModal from '../components/CertificateModal';
-import QuotaReachedCard from '../components/QuotaReachedCard';
-import { FREE_DAILY_MEDIA_SCANS } from '../config.js';
 import './AudioVerify.css';
 
 export default function AudioVerify({ onVerify }) {
@@ -11,7 +10,6 @@ export default function AudioVerify({ onVerify }) {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState(null);
-  const [quotaReached, setQuotaReached] = useState(false);
   const [audioUrl, setAudioUrl] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showCert, setShowCert] = useState(false);
@@ -48,7 +46,6 @@ export default function AudioVerify({ onVerify }) {
     setLoading(true);
     setLoadingStep(0);
     setResult(null);
-    setQuotaReached(false);
 
     const steps = [
       setTimeout(() => setLoadingStep(1), 300),
@@ -61,6 +58,10 @@ export default function AudioVerify({ onVerify }) {
       setLoadingStep(2);
       setResult(data);
       setLoading(false);
+      toast.success(
+        data.is_clean ? "Audio verified: Natural prosody & voice" : `Tampering detected (${data.risk_score}% risk)`,
+        { icon: data.is_clean ? '🛡️' : '⚠️' }
+      );
 
       if (onVerify) {
         onVerify({
@@ -72,13 +73,8 @@ export default function AudioVerify({ onVerify }) {
       }
     } catch (err) {
       steps.forEach(clearTimeout);
-      if (err.status === 402 && err.body?.detail?.code === 'quota_exceeded') {
-        setQuotaReached(true);
-        setLoading(false);
-        return;
-      }
       console.error("Audio verification failed:", err);
-      alert(err.message || "Network error: Could not connect to the security backend.");
+      toast.error(err.message || "Network error: Could not connect to the security backend.");
       setLoading(false);
     }
   };
@@ -248,11 +244,7 @@ export default function AudioVerify({ onVerify }) {
                   </button>
                   <div className="audio-track-info">
                     <span className="audio-filename">{result ? result.filename : 'Selected file'}</span>
-          {quotaReached && !loading && (
-            <QuotaReachedCard limit={FREE_DAILY_MEDIA_SCANS} />
-          )}
-
-          {result && (
+                    {result && (
                       <span className="audio-meta">{result.sample_rate} Hz &middot; {result.pitch_status}</span>
                     )}
                   </div>
@@ -312,6 +304,26 @@ export default function AudioVerify({ onVerify }) {
                       </div>
                     </div>
                   </div>
+
+                  {/* Engine C — Voice Clone Analysis */}
+                  {(result.voice_clone_risk !== undefined || result.hnr_db !== undefined) && (
+                    <div className="anomalies-section" style={{ background: result.voice_clone_risk > 50 ? 'rgba(244,63,94,0.04)' : 'rgba(16,185,129,0.04)', borderColor: result.voice_clone_risk > 50 ? 'rgba(244,63,94,0.12)' : 'rgba(16,185,129,0.12)' }}>
+                      <h4 style={{ color: result.voice_clone_risk > 50 ? 'var(--rose)' : 'var(--emerald)' }}>Voice Clone Analysis (Engine C)</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.8rem', marginBottom: '8px' }}>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Clone Risk:</span> <strong style={{ color: result.voice_clone_risk > 50 ? 'var(--rose)' : 'var(--emerald)' }}>{result.voice_clone_risk ?? '—'}%</strong></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>HNR:</span> <strong>{result.hnr_db ?? '—'} dB</strong> <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>(15–25 natural)</span></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Cepstral Δ var:</span> <strong>{result.cepstral_delta_variance ?? '—'}</strong></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>HF Ratio 6–8k:</span> <strong>{result.subband_highfreq_ratio ?? '—'}</strong></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Jitter:</span> <strong>{result.jitter_pct ?? '—'}%</strong> <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>(0.3–1.5% natural)</span></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Status:</span> <strong style={{ color: result.voice_clone_risk > 50 ? 'var(--rose)' : 'var(--emerald)' }}>{result.voice_clone_risk > 50 ? 'Vocoder Suspect' : 'Natural'}</strong></div>
+                      </div>
+                      {result.vocoder_signals && result.vocoder_signals.length > 0 && (
+                        <ul className="anomalies-list">
+                          {result.vocoder_signals.map((s, i) => <li key={i}><span className="bullet"></span> {s}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  )}
 
                   <div className="export-actions-group">
                     <button onClick={exportJSON} className="btn btn-secondary btn-sm" style={{ flex: 1 }}>

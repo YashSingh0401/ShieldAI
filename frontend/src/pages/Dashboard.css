@@ -255,11 +255,12 @@
 }
 
 .live-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background-color: var(--success);
   flex-shrink: 0;
+  animation: liveDot 1.8s ease-in-out infinite;
 }
 
 .feed-body {

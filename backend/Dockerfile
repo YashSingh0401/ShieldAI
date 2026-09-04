@@ -16,9 +16,13 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
 
 RUN mkdir -p /app/data
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD python -c "import httpx; httpx.get('http://localhost:8000/health/deep', timeout=4.0).raise_for_status()" || exit 1
+
+CMD ["sh", "-c", "alembic upgrade head || echo 'alembic upgrade failed, continuing with ensure_schema_upgrades fallback'; uvicorn app.main:app --host 0.0.0.0 --port 8000"]

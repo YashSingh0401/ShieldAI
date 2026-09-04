@@ -12,3 +12,12 @@ python-jose[cryptography]==3.3.0
 httpx==0.27.0
 slowapi==0.1.9
 psycopg2-binary==2.9.10
+reportlab>=5.0.1
+# Engine D/F/E optional (graceful fallback if missing)
+scipy>=1.11.0
+PyWavelets>=1.4.0
+scikit-image>=0.21.0
+tldextract>=4.0.0
+redis>=5.0.0
+alembic>=1.13.0
+# Heavy optional (install separately): opencv-python-headless, invisible-watermark, open-clip-torch, torch

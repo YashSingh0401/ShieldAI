@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
+import CyberBackground from './components/CyberBackground';
+import OnboardingModal from './components/OnboardingModal';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import Dashboard from './pages/Dashboard';
 import ImageVerify from './pages/ImageVerify';
 import LinkScan from './pages/LinkScan';
@@ -9,10 +13,48 @@ import Landing from './pages/Landing';
 import VideoVerify from './pages/VideoVerify';
 import AudioVerify from './pages/AudioVerify';
 import ScanHistory from './pages/ScanHistory';
+import Profile from './pages/Profile';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
+import ErrorBoundary from './components/ErrorBoundary';
 import { getStoredUser } from './api/client.js';
 import './App.css';
+
+/** Wraps every page in a page-enter div so route changes animate in */
+function AnimatedRoutes({ user, addHistoryItem, historyVersion }) {
+  const location = useLocation();
+  useKeyboardShortcuts();
+
+  return (
+    <>
+      <OnboardingModal />
+      <div className="page-enter" key={location.pathname}>
+        <Routes location={location}>
+          <Route path="/dashboard" element={<Dashboard historyVersion={historyVersion} />} />
+          <Route
+            path="/verify-image"
+            element={<ImageVerify onVerify={(info) => addHistoryItem({ type: 'image', ...info })} />}
+          />
+          <Route
+            path="/verify-video"
+            element={<VideoVerify onVerify={(info) => addHistoryItem({ type: 'video', ...info })} />}
+          />
+          <Route
+            path="/scan-link"
+            element={<LinkScan onScan={(info) => addHistoryItem({ type: 'url', ...info })} />}
+          />
+          <Route
+            path="/audio-verify"
+            element={<AudioVerify onVerify={(info) => addHistoryItem({ type: 'audio', ...info })} />}
+          />
+          <Route path="/history" element={<ScanHistory />} />
+          <Route path="/profile" element={<Profile user={user} />} />
+          <Route path="*" element={<Dashboard historyVersion={historyVersion} />} />
+        </Routes>
+      </div>
+    </>
+  );
+}
 
 function App() {
   const [user, setUser] = useState(() => getStoredUser());
@@ -31,13 +73,42 @@ function App() {
   };
 
   const addHistoryItem = (item) => {
-    // Server-side history is persisted by the verify endpoints; this only
-    // triggers the Dashboard to refresh with the latest server data.
     setHistoryVersion(v => v + 1);
   };
 
   return (
-    <Router>
+    <ErrorBoundary>
+      <Router>
+        <CyberBackground />
+        <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: 'var(--bg-card)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            boxShadow: 'var(--shadow-lg)',
+            backdropFilter: 'blur(16px)',
+            fontSize: '0.85rem',
+            fontWeight: '500',
+            padding: '12px 16px',
+            zIndex: 99999,
+          },
+          success: {
+            iconTheme: {
+              primary: 'var(--success)',
+              secondary: '#ffffff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: 'var(--danger)',
+              secondary: '#ffffff',
+            },
+          },
+        }}
+      />
       <Routes>
         {/* Public Root Route is ALWAYS the Landing Page */}
         <Route path="/" element={<Landing user={user} />} />
@@ -59,56 +130,19 @@ function App() {
               <div className="app-container">
                 <Navbar onLogout={handleLogout} user={user} />
                 <main className="main-content">
-                  <Routes>
-                    <Route path="/dashboard" element={<Dashboard historyVersion={historyVersion} />} />
-                    <Route 
-                      path="/verify-image" 
-                      element={
-                        <ImageVerify 
-                          onVerify={(info) => addHistoryItem({ type: 'image', ...info })} 
-                        />
-                      } 
-                    />
-                    <Route 
-                      path="/verify-video" 
-                      element={
-                        <VideoVerify 
-                          onVerify={(info) => addHistoryItem({ type: 'video', ...info })} 
-                        />
-                      } 
-                    />
-                    <Route 
-                      path="/scan-link" 
-                      element={
-                        <LinkScan 
-                          onScan={(info) => addHistoryItem({ type: 'url', ...info })} 
-                        />
-                      } 
-                    />
-                    <Route 
-                      path="/audio-verify" 
-                      element={
-                        <AudioVerify 
-                          onVerify={(info) => addHistoryItem({ type: 'audio', ...info })} 
-                        />
-                      } 
-                    />
-                    <Route 
-                      path="/history" 
-                      element={
-                        <ScanHistory />
-                      } 
-                    />
-                    {/* Fallback to dashboard */}
-                    <Route path="*" element={<Dashboard historyVersion={historyVersion} />} />
-                  </Routes>
+                  <AnimatedRoutes
+                    user={user}
+                    addHistoryItem={addHistoryItem}
+                    historyVersion={historyVersion}
+                  />
                 </main>
               </div>
             )
           }
         />
-      </Routes>
-    </Router>
+        </Routes>
+        </Router>
+      </ErrorBoundary>
   );
 }
 

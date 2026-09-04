@@ -1,17 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Film, ShieldAlert, CheckCircle, ChevronRight, Sliders, Play, RotateCw, Pause, AlertTriangle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../api/client.js';
 import CertificateModal from '../components/CertificateModal';
-import QuotaReachedCard from '../components/QuotaReachedCard';
-import { FREE_DAILY_MEDIA_SCANS } from '../config.js';
 import './VideoVerify.css';
 
 export default function VideoVerify({ onVerify }) {
   const [dragActive, setDragActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
+  const [wsProgress, setWsProgress] = useState(null);
   const [result, setResult] = useState(null);
-  const [quotaReached, setQuotaReached] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [videoUrl, setVideoUrl] = useState(null);
   const [showCert, setShowCert] = useState(false);
@@ -26,9 +25,34 @@ export default function VideoVerify({ onVerify }) {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    toast.success("JSON report exported successfully!");
   };
 
-  const exportPDF = () => {
+  const exportPDF = async () => {
+    if (result && result.scan_id) {
+      const toastId = toast.loading("Generating official forensic PDF certificate...");
+      try {
+        const token = localStorage.getItem('shield_session_token');
+        const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+        const res = await fetch(`${API_BASE}/verify/report/${result.scan_id}`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (!res.ok) throw new Error("Failed to generate PDF");
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `shieldAI_forensic_report_${result.scan_id}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        toast.success("Forensic PDF report downloaded!", { id: toastId });
+        return;
+      } catch (e) {
+        toast.dismiss(toastId);
+      }
+    }
     setShowCert(true);
   };
 
@@ -38,13 +62,32 @@ export default function VideoVerify({ onVerify }) {
     setLoading(true);
     setLoadingStep(0);
     setResult(null);
-    setQuotaReached(false);
     setIsPlaying(false);
 
     // Create preview URL for uploaded video
     if (videoUrl) URL.revokeObjectURL(videoUrl);
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
+
+    // Connect to real-time WebSocket progress stream
+    let ws = null;
+    try {
+      const wsUrl = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/^http/, 'ws');
+      ws = new WebSocket(`${wsUrl}/ws/scan-progress`);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'video', filename: file.name }));
+      };
+      ws.onmessage = (event) => {
+        try {
+          const telemetry = JSON.parse(event.data);
+          setWsProgress(telemetry);
+        } catch {
+          // ignore
+        }
+      };
+    } catch {
+      // Graceful fallback to static timeout steps
+    }
 
     const steps = [
       setTimeout(() => setLoadingStep(1), 300),
@@ -54,10 +97,16 @@ export default function VideoVerify({ onVerify }) {
 
     try {
       const data = await api.upload('/verify/video', file);
+      if (ws) ws.close();
       steps.forEach(clearTimeout);
       setLoadingStep(3);
       setResult(data);
       setLoading(false);
+      setWsProgress(null);
+      toast.success(
+        data.is_clean ? "Video verified: Clean container & timeline" : `Tampering detected (${data.risk_score}% risk)`,
+        { icon: data.is_clean ? '🛡️' : '⚠️' }
+      );
 
       if (onVerify) {
         onVerify({
@@ -68,14 +117,11 @@ export default function VideoVerify({ onVerify }) {
         });
       }
     } catch (err) {
+      if (ws) ws.close();
       steps.forEach(clearTimeout);
-      if (err.status === 402 && err.body?.detail?.code === 'quota_exceeded') {
-        setQuotaReached(true);
-        setLoading(false);
-        return;
-      }
+      setWsProgress(null);
       console.error("Video verification failed:", err);
-      alert(err.message || "Network error: Could not connect to the security backend.");
+      toast.error(err.message || "Network error: Could not connect to the security backend.");
       setLoading(false);
     }
   };
@@ -155,26 +201,43 @@ export default function VideoVerify({ onVerify }) {
           {loading && (
             <div className="glass-card loading-card">
               <div className="spinner"></div>
-              <h3>Analyzing Video Stream</h3>
+              <h3>{wsProgress ? wsProgress.stage : "Analyzing Video Stream"}</h3>
+              
+              {/* Dynamic Telemetry Progress Bar */}
+              {wsProgress && (
+                <div style={{ width: '100%', margin: '12px 0 8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    <span>Live Stream Telemetry</span>
+                    <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{wsProgress.progress}%</span>
+                  </div>
+                  <div style={{ width: '100%', height: '6px', background: 'var(--bg-muted)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div 
+                      style={{ 
+                        width: `${wsProgress.progress}%`, 
+                        height: '100%', 
+                        background: 'var(--accent-gradient)', 
+                        transition: 'width 0.3s ease' 
+                      }} 
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="loading-steps">
-                <div className={`step-item ${loadingStep >= 0 ? 'active' : ''}`}>
+                <div className={`step-item ${(wsProgress ? wsProgress.progress >= 20 : loadingStep >= 0) ? 'active' : ''}`}>
                   <ChevronRight size={14} /> Demuxing video container formats...
                 </div>
-                <div className={`step-item ${loadingStep >= 1 ? 'active' : ''}`}>
+                <div className={`step-item ${(wsProgress ? wsProgress.progress >= 45 : loadingStep >= 1) ? 'active' : ''}`}>
                   <ChevronRight size={14} /> Evaluating frame-rate consistency...
                 </div>
-                <div className={`step-item ${loadingStep >= 2 ? 'active' : ''}`}>
+                <div className={`step-item ${(wsProgress ? wsProgress.progress >= 70 : loadingStep >= 2) ? 'active' : ''}`}>
                   <ChevronRight size={14} /> Detecting frame-level compression anomalies...
                 </div>
-                <div className={`step-item ${loadingStep >= 3 ? 'active' : ''}`}>
+                <div className={`step-item ${(wsProgress ? wsProgress.progress >= 90 : loadingStep >= 3) ? 'active' : ''}`}>
                   <ChevronRight size={14} /> Correlating risk values...
                 </div>
               </div>
             </div>
-          )}
-
-          {quotaReached && !loading && (
-            <QuotaReachedCard limit={FREE_DAILY_MEDIA_SCANS} />
           )}
 
           {/* Results Summary Info Panel */}
@@ -297,6 +360,37 @@ export default function VideoVerify({ onVerify }) {
                     {result.anomalies.map((anom, idx) => (
                       <li key={idx}><span className="bullet"></span> {anom}</li>
                     ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Engine F — Temporal Coherence */}
+              {result.temporal_coherence && (
+                <div className="anomalies-section" style={{ background: result.temporal_coherence.temporal_risk > 40 ? 'rgba(244,63,94,0.04)' : 'rgba(16,185,129,0.04)', borderColor: result.temporal_coherence.temporal_risk > 40 ? 'rgba(244,63,94,0.12)' : 'rgba(16,185,129,0.12)' }}>
+                  <h4 style={{ color: result.temporal_coherence.temporal_risk > 40 ? 'var(--rose)' : 'var(--emerald)' }}>Temporal Coherence (Engine F)</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.8rem', marginBottom: '10px', marginTop: '6px' }}>
+                    <div><span style={{ color: 'var(--text-muted)' }}>Temporal Risk:</span> <strong style={{ color: result.temporal_coherence.temporal_risk > 40 ? 'var(--rose)' : 'var(--emerald)' }}>{result.temporal_coherence.temporal_risk}%</strong></div>
+                    <div><span style={{ color: 'var(--text-muted)' }}>Jitter Score:</span> <strong>{result.temporal_coherence.jitter_score ?? '—'}</strong> <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>&gt;8.0 suspect</span></div>
+                    <div><span style={{ color: 'var(--text-muted)' }}>Luma Var:</span> <strong>{result.temporal_coherence.luma_variance ?? '—'}</strong></div>
+                    <div><span style={{ color: 'var(--text-muted)' }}>Median SSIM:</span> <strong>{result.temporal_coherence.median_ssim ?? '—'}</strong></div>
+                    <div><span style={{ color: 'var(--text-muted)' }}>Min SSIM:</span> <strong style={{ color: (result.temporal_coherence.min_ssim ?? 1) < 0.85 ? 'var(--rose)' : 'var(--emerald)' }}>{result.temporal_coherence.min_ssim ?? '—'}</strong></div>
+                    <div><span style={{ color: 'var(--text-muted)' }}>Block Var:</span> <strong>{result.temporal_coherence.blockiness_variance ?? '—'}</strong></div>
+                  </div>
+                  {result.temporal_coherence.frame_ssim_drops && result.temporal_coherence.frame_ssim_drops.length > 0 && (
+                    <div style={{ marginBottom: '10px' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>SSIM Drop Chart (per-frame, higher = stable)</div>
+                      <div style={{ display: 'flex', gap: '2px', alignItems: 'flex-end', height: '48px', background: 'var(--bg-muted)', borderRadius: '6px', padding: '6px' }}>
+                        {result.temporal_coherence.frame_ssim_drops.map((v, i) => {
+                          const h = Math.max(4, Math.round(v * 100 * 0.4));
+                          const col = v < 0.85 ? 'var(--rose)' : v < 0.92 ? 'var(--amber, #f59e0b)' : 'var(--emerald)';
+                          return <div key={i} title={`Frame ${i+1}: SSIM ${v}`} style={{ flex: 1, height: `${h}%`, background: col, borderRadius: '2px', minWidth: '2px' }} />;
+                        })}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}><span>Frame 1</span><span>Frame {result.temporal_coherence.frame_ssim_drops.length}</span></div>
+                    </div>
+                  )}
+                  <ul className="anomalies-list">
+                    {(result.temporal_coherence.temporal_signals || []).map((s, i) => <li key={i}><span className="bullet"></span> {s}</li>)}
                   </ul>
                 </div>
               )}

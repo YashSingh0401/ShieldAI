@@ -1,0 +1,196 @@
+/* ============================================================
+   CYBERBACKGROUND DYNAMIC CANVAS & AURORA ORB STYLING
+   ============================================================ */
+
+.cyber-background-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* --- Ambient Glowing Aurora Fluid Orbs --- */
+.aurora-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(95px);
+  -webkit-filter: blur(95px);
+  opacity: 0.55;
+  pointer-events: none;
+  will-change: transform;
+}
+
+[data-theme="dark"] .aurora-orb.orb-1 {
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.28) 0%, transparent 70%);
+  top: -120px;
+  left: 10%;
+  animation: floatOrb1 24s ease-in-out infinite alternate;
+}
+
+[data-theme="dark"] .aurora-orb.orb-2 {
+  width: 620px;
+  height: 620px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.22) 0%, transparent 70%);
+  bottom: -150px;
+  right: 5%;
+  animation: floatOrb2 28s ease-in-out infinite alternate;
+}
+
+[data-theme="dark"] .aurora-orb.orb-3 {
+  width: 480px;
+  height: 480px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.16) 0%, transparent 70%);
+  top: 45%;
+  left: 48%;
+  transform: translate(-50%, -50%);
+  animation: floatOrb3 20s ease-in-out infinite alternate;
+}
+
+/* Light Theme Aurora Orbs */
+[data-theme="light"] .aurora-orb.orb-1 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.12) 0%, transparent 70%);
+  top: -100px;
+  left: 8%;
+  animation: floatOrb1 24s ease-in-out infinite alternate;
+}
+
+[data-theme="light"] .aurora-orb.orb-2 {
+  width: 580px;
+  height: 580px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+  bottom: -120px;
+  right: 8%;
+  animation: floatOrb2 28s ease-in-out infinite alternate;
+}
+
+[data-theme="light"] .aurora-orb.orb-3 {
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(147, 197, 253, 0.14) 0%, transparent 70%);
+  top: 40%;
+  left: 45%;
+  transform: translate(-50%, -50%);
+  animation: floatOrb3 20s ease-in-out infinite alternate;
+}
+
+/* --- Orb Floating Keyframe Animations --- */
+@keyframes floatOrb1 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(140px, 90px, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(-60px, 140px, 0) scale(0.95);
+  }
+}
+
+@keyframes floatOrb2 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-120px, -80px, 0) scale(1.1);
+  }
+  100% {
+    transform: translate3d(80px, -130px, 0) scale(0.92);
+  }
+}
+
+@keyframes floatOrb3 {
+  0% {
+    transform: translate3d(-50%, -50%, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-40%, -60%, 0) scale(1.18);
+  }
+  100% {
+    transform: translate3d(-60%, -40%, 0) scale(0.9);
+  }
+}
+
+/* --- Subtle Cyber Grid Overlay --- */
+.cyber-grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-size: 56px 56px;
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+[data-theme="dark"] .cyber-grid-overlay {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
+[data-theme="light"] .cyber-grid-overlay {
+  background-image: 
+    linear-gradient(to right, rgba(0, 0, 0, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.025) 1px, transparent 1px);
+}
+
+/* --- Traveling Cyber Horizon Radar Scan Beam --- */
+.cyber-horizon-beam {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(56, 189, 248, 0.035) 50%,
+    rgba(99, 102, 241, 0.06) 95%,
+    rgba(56, 189, 248, 0.15) 100%
+  );
+  animation: scanHorizon 14s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  pointer-events: none;
+}
+
+[data-theme="light"] .cyber-horizon-beam {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(37, 99, 235, 0.02) 50%,
+    rgba(99, 102, 241, 0.035) 95%,
+    rgba(37, 99, 235, 0.07) 100%
+  );
+}
+
+@keyframes scanHorizon {
+  0% {
+    top: -120px;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: 100vh;
+    opacity: 0;
+  }
+}
+
+/* --- Constellation Canvas --- */
+.cyber-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 1;
+  pointer-events: none;
+}

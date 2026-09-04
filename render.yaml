@@ -18,7 +18,7 @@ services:
     plan: free
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
-    healthCheckPath: /health
+    healthCheckPath: /health/deep
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -29,11 +29,17 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: FREE_DAILY_MEDIA_SCANS
-        value: "10"
+        value: "999999"
       - key: ADMIN_EMAILS
         sync: false
       - key: FRONTEND_URL
         value: https://shieldai-web.onrender.com
+      - key: REDIS_URL
+        sync: false
+      - key: ENABLE_CLIP
+        value: "0"
+      - key: VIRUSTOTAL_API_KEY
+        sync: false
 
   - type: web
     name: shieldai-web

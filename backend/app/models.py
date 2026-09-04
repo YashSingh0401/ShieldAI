@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, ForeignKey, Boolean, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, ForeignKey, Boolean, func, Index
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -41,6 +41,9 @@ class ScamComment(Base):
 
 class ScanHistory(Base):
     __tablename__ = "scan_history"
+    __table_args__ = (
+        Index("ix_scan_history_user_type_ts", "user_email", "scan_type", "timestamp"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     scan_type = Column(String, nullable=False)
@@ -48,4 +51,5 @@ class ScanHistory(Base):
     risk_score = Column(Float, nullable=False)
     status = Column(String, nullable=False)
     user_email = Column(String, index=True, nullable=True)
+    scan_payload = Column(Text, nullable=True)
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)

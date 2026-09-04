@@ -18,6 +18,187 @@ def _check_ffmpeg():
     except Exception:
         return False
 
+def temporal_coherence_score(frames: list) -> dict:
+    """
+    Engine F — Temporal Coherence / Deepfake Video Analyzer.
+    Input: frames = list[np.ndarray] RGB uint8, downscaled to 480p for efficiency.
+    Detection layers:
+      1. Inter-Frame SSIM Drop — real >0.85, deepfake micro-discontinuities 5-15% dip in face ROI
+      2. Face-Region Optical Flow Jitter — high-frequency residual jitter in central 40% ROI
+      3. Luminance Temporal Variance — flicker sigma >8.0 in face zone
+      4. Compression Pattern Discontinuity — blockiness reset each frame
+
+    Returns {temporal_risk, frame_ssim_drops, jitter_score, luma_variance, temporal_signals[]}
+    """
+    try:
+        if not frames or len(frames) < 2:
+            return {
+                "temporal_risk": 5,
+                "frame_ssim_drops": [],
+                "jitter_score": 0.0,
+                "luma_variance": 0.0,
+                "temporal_signals": ["Insufficient frames for temporal coherence analysis."],
+            }
+
+        # Try import SSIM
+        try:
+            from skimage.metrics import structural_similarity as ssim
+            has_ssim = True
+        except ImportError:
+            ssim = None
+            has_ssim = False
+
+        def _to_luma(arr):
+            if arr.ndim == 3:
+                # RGB to luma
+                return 0.299*arr[:,:,0] + 0.587*arr[:,:,1] + 0.114*arr[:,:,2]
+            return arr.astype(float)
+
+        def _blockiness_grayscale(gray):
+            try:
+                a = np.asarray(gray, dtype=np.int32)
+                h,w = a.shape
+                block=8
+                if h < block*3 or w < block*3:
+                    return 1.0
+                dh = np.abs(a[:,1:] - a[:,:-1])
+                bcols = np.arange(block, w-block, block)
+                interior = np.setdiff1d(np.arange(1,w-1), bcols)
+                if len(bcols)==0 or len(interior)==0:
+                    return 1.0
+                bh = float(dh[:,bcols-1].mean() / max(1e-9, dh[:,interior].mean()))
+                dv = np.abs(a[1:,:] - a[:-1,:])
+                brows = np.arange(block, h-block, block)
+                interior_r = np.setdiff1d(np.arange(1,h-1), brows)
+                if len(brows)==0 or len(interior_r)==0:
+                    return 1.0
+                bv = float(dv[brows-1,:].mean() / max(1e-9, dv[interior_r,:].mean()))
+                return (bh+bv)/2.0
+            except Exception:
+                return 1.0
+
+        # Central 40% ROI indices
+        h0,w0,_ = frames[0].shape
+        rh, rw = int(h0*0.3), int(w0*0.3)
+        rh2, rw2 = int(h0*0.7), int(w0*0.7)
+        # Ensure valid
+        rh = max(0,rh); rh2 = min(h0,rh2)
+        rw = max(0,rw); rw2 = min(w0,rw2)
+
+        ssims = []
+        luma_means = []
+        blockiness_vals = []
+        jitter_diffs = []
+
+        for idx, f in enumerate(frames):
+            gray = _to_luma(f)
+            # ROI gray
+            roi = gray[rh:rh2, rw:rw2] if gray.ndim==2 else gray
+            luma_means.append(float(np.mean(roi)))
+            blockiness_vals.append(_blockiness_grayscale(gray))
+
+            if idx > 0:
+                prev = frames[idx-1]
+                prev_gray = _to_luma(prev)
+                # SSIM on ROI (downscaled, use has_ssim else MSE proxy)
+                roi_prev = prev_gray[rh:rh2, rw:rw2] if prev_gray.ndim==2 else prev_gray
+                roi_cur = gray[rh:rh2, rw:rw2] if gray.ndim==2 else gray
+                # ensure same shape
+                if roi_prev.shape != roi_cur.shape:
+                    # resize via crop/pad minimal
+                    mh = min(roi_prev.shape[0], roi_cur.shape[0])
+                    mw = min(roi_prev.shape[1], roi_cur.shape[1])
+                    roi_prev = roi_prev[:mh,:mw]
+                    roi_cur = roi_cur[:mh,:mw]
+                if has_ssim:
+                    try:
+                        # data_range 255
+                        v = float(ssim(roi_prev.astype(np.uint8), roi_cur.astype(np.uint8), data_range=255))
+                        v = np.clip(v, -1, 1)
+                    except Exception:
+                        # MSE fallback
+                        mse = float(np.mean((roi_prev - roi_cur)**2))
+                        v = float(np.clip(1 - mse/5000, 0, 1))
+                else:
+                    mse = float(np.mean((roi_prev.astype(float) - roi_cur.astype(float))**2))
+                    v = float(np.clip(1 - mse/5000, 0, 1))
+                ssims.append(v)
+
+                # Jitter: high-frequency residual in ROI diff
+                diff = np.abs(roi_cur.astype(float) - roi_prev.astype(float))
+                jitter_diffs.append(float(np.std(diff)))
+
+        # Metrics
+        frame_ssim_drops = [round(float(v),4) for v in ssims]
+        # Detect drops: count SSIM <0.85 or delta < -0.08 from median
+        median_ssim = float(np.median(ssims)) if ssims else 1.0
+        drops = sum(1 for v in ssims if v < 0.85 or (median_ssim - v) > 0.08)
+        min_ssim = float(np.min(ssims)) if ssims else 1.0
+
+        # Jitter score: mean std of diff in ROI
+        jitter_score = float(np.mean(jitter_diffs)) if jitter_diffs else 0.0
+        luma_variance = float(np.std(np.diff(np.array(luma_means)))) if len(luma_means)>=2 else 0.0
+        # blockiness discontinuity: std of blockiness across frames (reset each frame -> high variance)
+        block_var = float(np.std(blockiness_vals)) if blockiness_vals else 0.0
+
+        temporal_signals = []
+        temporal_risk = 5
+
+        if drops >= 3:
+            temporal_risk += 30
+            temporal_signals.append(f"Repeated inter-frame SSIM drops ({drops}/{len(ssims)} frames <0.85, min {min_ssim:.3f}) — micro-discontinuities in face ROI (deepfake per-frame generation).")
+        elif drops >= 1:
+            temporal_risk += 15
+            temporal_signals.append(f"Inter-frame SSIM dip detected (min {min_ssim:.3f}, median {median_ssim:.3f}) — isolated inconsistency, verify source.")
+        else:
+            temporal_signals.append(f"Smooth inter-frame SSIM (median {median_ssim:.3f}, min {min_ssim:.3f}) — consistent temporal continuity.")
+
+        if jitter_score > 8.0:
+            temporal_risk += 25
+            temporal_signals.append(f"High face-region jitter ({jitter_score:.2f} σ) — optical flow residual exceeds natural smooth motion (deepfake face jitter).")
+        elif jitter_score > 5.0:
+            temporal_risk += 12
+            temporal_signals.append(f"Moderate jitter ({jitter_score:.2f}) — slight motion discontinuity in face zone.")
+        else:
+            temporal_signals.append(f"Natural motion smoothness (jitter {jitter_score:.2f}) — no high-frequency face jitter.")
+
+        if luma_variance > 8.0:
+            temporal_risk += 20
+            temporal_signals.append(f"Luminance flicker σ={luma_variance:.2f} (>8.0) — frame-to-frame luma oscillates (independent frame generation).")
+        elif luma_variance > 4.0:
+            temporal_risk += 8
+            temporal_signals.append(f"Elevated luma variance ({luma_variance:.2f}) — borderline flicker.")
+
+        if block_var > 0.15:
+            temporal_risk += 15
+            temporal_signals.append(f"Compression discontinuity (blockiness σ={block_var:.3f}) — block pattern resets each frame (fresh JPEG per frame).")
+        elif block_var > 0.08:
+            temporal_risk += 8
+            temporal_signals.append(f"Moderate blockiness variation ({block_var:.3f}).")
+
+        if not has_ssim:
+            temporal_signals.append("scikit-image not installed (pip install scikit-image) — SSIM approximated via MSE proxy.")
+
+        temporal_risk = int(np.clip(temporal_risk, 5, 95))
+        if not temporal_signals:
+            temporal_signals.append("Temporal coherence analysis passed — natural inter-frame continuity.")
+
+        return {
+            "temporal_risk": temporal_risk,
+            "frame_ssim_drops": frame_ssim_drops,
+            "jitter_score": round(float(jitter_score), 3),
+            "luma_variance": round(float(luma_variance), 3),
+            "blockiness_variance": round(float(block_var), 4),
+            "median_ssim": round(float(median_ssim), 4),
+            "min_ssim": round(float(min_ssim), 4),
+            "temporal_signals": temporal_signals,
+        }
+    except ImportError as e:
+        return {"temporal_risk": 5, "frame_ssim_drops": [], "jitter_score": 0.0, "luma_variance": 0.0, "temporal_signals": [f"Temporal analysis requires scikit-image (pip install scikit-image): {e}"]}
+    except Exception as e:
+        return {"temporal_risk": 5, "frame_ssim_drops": [], "jitter_score": 0.0, "luma_variance": 0.0, "temporal_signals": [f"Temporal analysis error: {e}"]}
+
+
 def analyze_video(filename: str, file_bytes: bytes) -> dict:
     """
     Scans video container structures for signature metadata flags, Variable Frame Rates (VFR),
@@ -108,12 +289,26 @@ def analyze_video(filename: str, file_bytes: bytes) -> dict:
                 indices = list(range(n_samples))
 
             frame_means = []
+            frames_sample = []  # downscaled 480p for temporal coherence
             for i, idx in enumerate(indices):
                 try:
                     frame = reader.get_data(min(idx, num_frames - 1) if num_frames > 0 else 0)
                     img = Image.fromarray(frame)
                     if img.mode != 'RGB':
                         img = img.convert('RGB')
+
+                    # Keep downscaled copy for temporal analysis (longest side 480, per decision)
+                    try:
+                        w,h = img.size
+                        scale = 480.0 / max(w, h) if max(w,h) > 480 else 1.0
+                        new_w, new_h = max(1,int(w*scale)), max(1,int(h*scale))
+                        small = img.resize((new_w, new_h), Image.BILINEAR)
+                        frames_sample.append(np.array(small))
+                    except Exception:
+                        try:
+                            frames_sample.append(np.array(img.resize((480, max(1,int(480*img.size[1]/max(1,img.size[0])))), Image.BILINEAR)))
+                        except Exception:
+                            pass
 
                     temp_buffer = io.BytesIO()
                     img.save(temp_buffer, format='JPEG', quality=90)
@@ -189,6 +384,21 @@ def analyze_video(filename: str, file_bytes: bytes) -> dict:
         "Bitrate": f"{round((file_size_mb * 8) / max(0.5, duration_sec), 1)} Mbps"
     }
     
+    # ── Engine F — Temporal coherence (only when we have frames) ──
+    temporal = None
+    if has_real_analysis:
+        try:
+            # frames_sample defined inside the imageio block; fallback to empty if missing
+            _frames = locals().get("frames_sample", [])
+            if _frames and len(_frames) >= 2:
+                temporal = temporal_coherence_score(_frames)
+            else:
+                temporal = {"temporal_risk": 5, "frame_ssim_drops": [], "jitter_score": 0.0, "luma_variance": 0.0, "temporal_signals": ["Not enough valid frames for temporal analysis."]}
+        except Exception as e:
+            temporal = {"temporal_risk": 5, "frame_ssim_drops": [], "jitter_score": 0.0, "luma_variance": 0.0, "temporal_signals": [f"Temporal analysis error: {e}"]}
+    else:
+        temporal = {"temporal_risk": 5, "frame_ssim_drops": [], "jitter_score": 0.0, "luma_variance": 0.0, "temporal_signals": ["Temporal analysis unavailable — frame decoding failed."]}
+
     # 2. Evidence-based classification for localized tampering.
     # Only real frame analysis results are used, never filename heuristics.
     timeline_danger_count = sum(1 for item in timeline if item["status"] == "danger")
@@ -211,6 +421,25 @@ def analyze_video(filename: str, file_bytes: bytes) -> dict:
         risk_score = min(30, int(8 + median_ela * 3))
         risk_level = "Authentic Stream"
         is_clean = True
+
+    # Fuse temporal risk as weighted secondary (keep ELA primary, add temporal evidence)
+    try:
+        _tr = int(temporal.get("temporal_risk", 5)) if isinstance(temporal, dict) else 5
+        # Only boost if temporal signals indicate deepfake-like artifacts
+        if _tr > 40:
+            # weighted: 30% of temporal
+            risk_score = min(95, max(risk_score, int(risk_score * 0.7 + _tr * 0.3)))
+            # propagate deepfake signals into anomalies if high risk
+            if _tr >= 50:
+                for sig in temporal.get("temporal_signals", []):
+                    if "SSIM" in sig or "jitter" in sig.lower() or "flicker" in sig.lower():
+                        if sig not in anomalies:
+                            anomalies.append(sig)
+                is_clean = False
+                if "Deepfake" not in risk_level and "Elevated" not in risk_level:
+                    risk_level = "Deepfake Suspect (Temporal Coherence)"
+    except Exception:
+        pass
         
     return {
         "is_clean": is_clean,
@@ -219,5 +448,6 @@ def analyze_video(filename: str, file_bytes: bytes) -> dict:
         "risk_level": risk_level,
         "metadata": metadata,
         "timeline": timeline,
-        "anomalies": anomalies
+        "anomalies": anomalies,
+        "temporal_coherence": temporal,
     }

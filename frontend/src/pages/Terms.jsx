@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShieldCheck } from 'lucide-react';
-import { CONTACT_EMAIL, FREE_DAILY_MEDIA_SCANS } from '../config.js';
+import { CONTACT_EMAIL } from '../config.js';
 import './Legal.css';
 
 export default function Terms() {
@@ -28,9 +28,8 @@ export default function Terms() {
 
         <h2>Fair-use limits</h2>
         <p>
-          shieldAI is free for everyone. To keep it fast and available, media scans (image, video,
-          audio) are limited to {FREE_DAILY_MEDIA_SCANS} per user per day. Link scans are
-          unlimited subject to normal rate limiting. Automated scraping of the API is not permitted.
+          shieldAI is free for everyone. Media scans (image, video, audio) are currently <strong>unlimited</strong> with no daily cap.
+          Link scans are also unlimited subject to normal rate limiting. Automated scraping of the API is not permitted.
         </p>
 
         <h2>No warranty</h2>
