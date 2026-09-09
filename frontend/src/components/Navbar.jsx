@@ -108,6 +108,13 @@ export default function Navbar({ onLogout, user }) {
           <span>{theme === 'dark' ? 'Light Theme' : 'Cyber Dark'}</span>
         </button>
 
+        {user && user.email && user.email.toLowerCase() === 'yashwardhans782@gmail.com' && (
+          <RouterLink to="/admin" className="menu-item admin-menu-item" style={{ color: 'var(--danger)' }}>
+            <ShieldCheck size={18} />
+            <span className="menu-text">Admin Panel</span>
+            <span className="admin-badge">ADMIN</span>
+          </RouterLink>
+        )}
         {user && (
           <RouterLink to="/profile" className="user-profile-widget" style={{ textDecoration: 'none', color: 'inherit' }}>
             <div className="user-avatar">

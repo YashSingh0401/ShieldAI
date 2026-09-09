@@ -263,6 +263,17 @@
   overflow: hidden;
 }
 
+.admin-badge {
+  background: var(--danger);
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
 .btn-logout {
   display: flex;
   align-items: center;

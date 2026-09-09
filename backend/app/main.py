@@ -41,7 +41,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Dict, List, Optional, Any
 from PIL import Image
 
 from .config import (
@@ -60,7 +60,7 @@ from .cv_engine import perform_ela, extract_exif, detect_ai_generation, prnu_fin
 from .url_engine import analyze_url, semantic_phish_score, ct_log_threat_intel
 from .video_engine import analyze_video
 from .audio_engine import analyze_audio
-from .auth import verify_google_token, create_session_token, get_current_user, get_optional_user
+from .auth import verify_google_token, create_session_token, get_current_user, get_admin_user, get_optional_user
 from .report_generator import generate_pdf_report
 try:
     from .clip_engine import clip_coherence_score
@@ -104,9 +104,8 @@ app.add_middleware(
         FRONTEND_URL,
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "https://shieldai-web.onrender.com",
     ],
-    allow_origin_regex=r"https://.*\.onrender\.com",
+    allow_origin_regex=r"https://shieldai.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -200,6 +199,8 @@ def _is_magic_image(data: bytes) -> bool:
         return True
     if data[:4] == b"\x00\x00\x01\x00":                      # ICO
         return True
+    if data[:4] == b"ftyp" and data[4:8] in (b"avif", b"avis", b"mif1", b"heic", b"heix", b"av1 ", b"av1"):  # ISOBMFF (AV1/HEIC)
+        return True
     return False
 
 
@@ -222,8 +223,18 @@ def validate_upload(file: UploadFile, allowed_types: set, max_mb: int):
     if content_type in allowed_lower:
         is_valid = True
     else:
-        # ── Tier 3: Content sniffing ────────────────────────────────────────
+        # ── DoS guard: check size before reading full data ───────────────────
+        file.file.seek(0, 2)
+        size = file.file.tell()
         file.file.seek(0)
+        if size == 0:
+            raise HTTPException(status_code=400, detail="Empty file uploaded.")
+        if size > max_mb * 1024 * 1024:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Maximum size is {max_mb}MB.",
+            )
+        # ── Tier 3: Content sniffing ────────────────────────────────────────
         data = file.file.read()
         size = len(data)
         file.file.seek(0)
@@ -818,7 +829,7 @@ async def verify_audio(
     user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    allowed_audio = ALLOWED_AUDIO_TYPES | {"application/octet-stream"}
+    allowed_audio = ALLOWED_AUDIO_TYPES
     validate_upload(file, allowed_audio, MAX_UPLOAD_SIZE_MB)
     enforce_media_quota(user, db)
     try:
@@ -914,6 +925,9 @@ async def websocket_scan_progress(websocket: WebSocket):
 @app.get("/verify/history", response_model=list[ScanHistoryResponse])
 def get_scan_history(
     scan_type: Optional[str] = None,
+    q: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
@@ -921,7 +935,16 @@ def get_scan_history(
     query = db.query(ScanHistory).filter(ScanHistory.user_email == user["email"].lower())
     if scan_type:
         query = query.filter(ScanHistory.scan_type == scan_type)
-    return query.order_by(ScanHistory.timestamp.desc()).all()
+    if q:
+        search_filter = (
+            ScanHistory.target.ilike(f"%{q}%")
+            | ScanHistory.scan_type.ilike(f"%{q}%")
+            | ScanHistory.status.ilike(f"%{q}%")
+        )
+        query = query.filter(search_filter)
+    total = query.count()
+    items = query.order_by(ScanHistory.timestamp.desc()).offset(offset).limit(limit).all()
+    return items
 
 
 @app.get("/user/profile")
@@ -1171,3 +1194,194 @@ def delete_comment(report_id: int, comment_id: int, db: Session = Depends(get_db
     db.delete(comment)
     db.commit()
     return {"status": "deleted", "id": comment_id}
+
+
+# ─── Admin API ──────────────────────────────────────────────────────────────
+@app.post("/admin/login", response_model=AuthResponse)
+def admin_login(body: GoogleAuthRequest, db: Session = Depends(get_db)):
+    user_info = verify_google_token(body.credential)
+    email = user_info["email"].lower()
+    if email not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="not_admin")
+    existing = db.query(User).filter(User.email == email).first()
+    if not existing:
+        db.add(User(email=email, name=user_info.get("name", ""), picture=user_info.get("picture", "")))
+    db.commit()
+    token = create_session_token(user_info)
+    return AuthResponse(
+        token=token,
+        user={"name": user_info["name"], "email": email, "avatar": user_info.get("picture", "")},
+    )
+
+
+@app.get("/admin/me", response_model=AuthResponse)
+def admin_me(user: dict = Depends(get_admin_user)):
+    return AuthResponse(
+        token="",  # no-op for this guard-only endpoint; caller already has valid token
+        user={"name": user["name"], "email": user["email"], "avatar": user["picture"]},
+    )
+
+
+class _AdminUserListItem(BaseModel):
+    id: int
+    email: str
+    name: str
+    picture: str
+    total_scans: int = 0
+    threats_flagged: int = 0
+    last_active: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+
+class _AdminUserListResponse(BaseModel):
+    items: List[_AdminUserListItem]
+    total: int
+    limit: int
+    offset: int
+    class Config:
+        from_attributes = True
+
+
+@app.get("/admin/users", response_model=_AdminUserListResponse)
+def admin_list_users(
+    q: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    admin: dict = Depends(require_admin),
+):
+    query = db.query(User)
+    if q:
+        query = query.filter(User.email.ilike(f"%{q}%") | User.name.ilike(f"%{q}%"))
+    total = query.count()
+    items = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+    result = []
+    for u in items:
+        used = (
+            db.query(func.count(ScanHistory.id))
+            .filter(ScanHistory.user_email == u.email, ScanHistory.status == "danger")
+            .scalar() or 0
+        )
+        last_ts = (
+            db.query(ScanHistory.timestamp)
+            .filter(ScanHistory.user_email == u.email)
+            .order_by(ScanHistory.timestamp.desc())
+            .limit(1)
+            .scalar()
+        )
+        result.append(
+            _AdminUserListItem(
+                id=u.id,
+                email=u.email,
+                name=u.name or u.email.split("@")[0],
+                picture=u.picture or "",
+                total_scans=db.query(func.count(ScanHistory.id)).filter(ScanHistory.user_email == u.email).scalar() or 0,
+                threats_flagged=used,
+                last_active=str(last_ts) if last_ts else None,
+            )
+        )
+    return _AdminUserListResponse(items=result, total=total, limit=limit, offset=offset)
+
+
+class _AdminScanHistoryItem(ScanHistoryResponse):
+    user_email: str
+    class Config:
+        from_attributes = True
+
+
+class _AdminScanHistoryListResponse(BaseModel):
+    items: List[_AdminScanHistoryItem]
+    total: int
+    limit: int
+    offset: int
+    class Config:
+        from_attributes = True
+
+
+@app.get("/admin/scan-history", response_model=_AdminScanHistoryListResponse)
+def admin_list_scan_history(
+    q: Optional[str] = None,
+    scan_type: Optional[str] = None,
+    user_email: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    admin: dict = Depends(require_admin),
+):
+    query = db.query(ScanHistory)
+    if q:
+        search = f"%{q}%"
+        query = query.filter(
+            ScanHistory.target.ilike(search)
+            | ScanHistory.scan_type.ilike(search)
+            | ScanHistory.status.ilike(search)
+        )
+    if scan_type:
+        query = query.filter(ScanHistory.scan_type == scan_type)
+    if user_email:
+        query = query.filter(ScanHistory.user_email == user_email)
+    total = query.count()
+    items = (
+        query.order_by(ScanHistory.timestamp.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    result = []
+    for s in items:
+        u = db.query(User).filter(User.email == s.user_email).first()
+        result.append(
+            _AdminScanHistoryItem(
+                id=s.id,
+                scan_type=s.scan_type,
+                target=s.target,
+                risk_score=s.risk_score,
+                status=s.status,
+                timestamp=s.timestamp,
+                user_email=s.user_email,
+                user_name=(u.name or u.email.split("@")[0]) if u else "",
+            )
+        )
+    return _AdminScanHistoryListResponse(items=result, total=total, limit=limit, offset=offset)
+
+
+class _AdminUserDetailStats(BaseModel):
+    total_scans: int
+    threats_flagged: int
+    clean_verified: int
+    by_type: Dict[str, int]
+
+
+@app.get("/admin/users/{email}", response_model=Dict[str, Any])
+def admin_user_detail(
+    email: str,
+    db: Session = Depends(get_db),
+    admin: dict = Depends(require_admin),
+):
+    u = db.query(User).filter(User.email == email).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    total = db.query(func.count(ScanHistory.id)).filter(ScanHistory.user_email == email).scalar() or 0
+    threats = db.query(func.count(ScanHistory.id)).filter(
+        ScanHistory.user_email == email, ScanHistory.status == "danger"
+    ).scalar() or 0
+    clean = max(0, total - threats)
+    by_type = {}
+    for t in ["image", "video", "url", "audio"]:
+        by_type[t] = db.query(func.count(ScanHistory.id)).filter(
+            ScanHistory.user_email == email, ScanHistory.scan_type == t
+        ).scalar() or 0
+    return {
+        "id": u.id,
+        "email": u.email,
+        "name": u.name or u.email.split("@")[0],
+        "picture": u.picture or "",
+        "created_at": str(u.created_at) if u.created_at else None,
+        "stats": _AdminUserDetailStats(
+            total_scans=total,
+            threats_flagged=threats,
+            clean_verified=clean,
+            by_type=by_type,
+        ),
+    }

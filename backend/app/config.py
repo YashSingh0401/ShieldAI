@@ -9,9 +9,9 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./database.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or "634215781982-b10vg7gv43k6oo243tfm353o7vf889on.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
-JWT_SECRET = os.getenv("JWT_SECRET") or "shieldai-default-jwt-secret-key-2026-production"
+JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24
 MAX_UPLOAD_SIZE_MB = 50
@@ -19,8 +19,12 @@ MAX_UPLOAD_SIZE_MB = 50
 # Daily limit disabled — set to unlimited (was 10). Env override kept for backwards compat but ignored.
 FREE_DAILY_MEDIA_SCANS = int(os.getenv("FREE_DAILY_MEDIA_SCANS", "999999"))
 
-# Comma-separated admin emails; admins can hide/unhide/delete community reports.
-ADMIN_EMAILS = {e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()}
+# Single admin email — exact match only. Set via ADMIN_EMAILS env or defaults below.
+_ADMIN_EMAIL_DEFAULT = "yashwardhans782@gmail.com"
+ADMIN_EMAIL = os.getenv("ADMIN_EMAILS", "").strip().lower()
+if not ADMIN_EMAIL:
+    ADMIN_EMAIL = _ADMIN_EMAIL_DEFAULT
+ADMIN_EMAILS = {ADMIN_EMAIL}
 
 ALLOWED_IMAGE_TYPES = {
     "image/jpeg", "image/jpg", "image/png", "image/webp", "image/tiff", "image/jfif", "image/pjpeg", "image/x-png", "image/bmp",

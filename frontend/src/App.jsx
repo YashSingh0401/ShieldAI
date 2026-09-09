@@ -17,6 +17,9 @@ import Profile from './pages/Profile';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import ErrorBoundary from './components/ErrorBoundary';
+import Admin from './pages/Admin.jsx';
+import AdminLogin from './pages/AdminLogin.jsx';
+import { AdminRoute } from './components/AdminRoute.js';
 import { getStoredUser } from './api/client.js';
 import './App.css';
 
@@ -70,6 +73,8 @@ function App() {
     setUser(null);
     localStorage.removeItem('shield_session_token');
     localStorage.removeItem('shield_user');
+    localStorage.removeItem('shield_admin_token');
+    localStorage.removeItem('shield_admin_user');
   };
 
   const addHistoryItem = (item) => {
@@ -115,10 +120,14 @@ function App() {
         
         {/* Public Login Route */}
         <Route path="/login" element={<Login onLogin={handleLogin} user={user} />} />
-
+        
+        {/* Admin Login Route - Gmail only */}
+        <Route path="/admin-login" element={<AdminLogin />} />
+        
         {/* Public Legal Routes */}
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
+        <Route path="/admin-login" element={<AdminLogin />} />
 
         {/* Protected Console Workspace Routes */}
         <Route
@@ -130,11 +139,13 @@ function App() {
               <div className="app-container">
                 <Navbar onLogout={handleLogout} user={user} />
                 <main className="main-content">
-                  <AnimatedRoutes
-                    user={user}
-                    addHistoryItem={addHistoryItem}
-                    historyVersion={historyVersion}
-                  />
+                  <AdminRoute>
+                    <AnimatedRoutes
+                      user={user}
+                      addHistoryItem={addHistoryItem}
+                      historyVersion={historyVersion}
+                    />
+                  </AdminRoute>
                 </main>
               </div>
             )
@@ -142,7 +153,7 @@ function App() {
         />
         </Routes>
         </Router>
-      </ErrorBoundary>
+        </ErrorBoundary>
   );
 }
 
