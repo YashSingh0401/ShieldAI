@@ -10,6 +10,9 @@ frontend/.env
 env/
 
 # SQLite databases & lockfiles
+*.db
+*.db-shm
+*.db-wal
 backend/database.db
 backend/database.db-shm
 backend/database.db-wal
@@ -18,12 +21,18 @@ backend/database.db-wal
 backend/benchmark_data/image/
 backend/benchmark_data/audio/
 backend/benchmark_data/video/
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # Local dev logs
+*.log
 backend/backend_out.log
 backend/backend_err.log
+backend/backend_restart.log
 
 # OS files
 .DS_Store
 Thumbs.db
 backend/.env
+frontend/.env.local
+.opencode/

@@ -1,0 +1,36 @@
+@import './Login.css';
+
+.auth-error-banner {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 0.85rem;
+  text-align: center;
+  margin-top: -6px;
+}
+
+.divider-line {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.8rem;
+  margin: 4px 0;
+}
+
+.divider-line::before,
+.divider-line::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+}
+
+.divider-line::before {
+  margin-right: 12px;
+}
+
+.divider-line::after {
+  margin-left: 12px;
+}

@@ -19,7 +19,7 @@ import Terms from './pages/Terms';
 import ErrorBoundary from './components/ErrorBoundary';
 import Admin from './pages/Admin.jsx';
 import AdminLogin from './pages/AdminLogin.jsx';
-import { AdminRoute } from './components/AdminRoute.js';
+import { AdminRoute } from './components/AdminRoute.jsx';
 import { getStoredUser } from './api/client.js';
 import './App.css';
 
@@ -123,11 +123,38 @@ function App() {
         
         {/* Admin Login Route - Gmail only */}
         <Route path="/admin-login" element={<AdminLogin />} />
+
+        {/* Admin Portal Routes - Guarded by AdminRoute */}
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <div className="app-container">
+                <Navbar onLogout={handleLogout} user={user} />
+                <main className="main-content">
+                  <Admin />
+                </main>
+              </div>
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/users/:email"
+          element={
+            <AdminRoute>
+              <div className="app-container">
+                <Navbar onLogout={handleLogout} user={user} />
+                <main className="main-content">
+                  <Admin />
+                </main>
+              </div>
+            </AdminRoute>
+          }
+        />
         
         {/* Public Legal Routes */}
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
-        <Route path="/admin-login" element={<AdminLogin />} />
 
         {/* Protected Console Workspace Routes */}
         <Route
@@ -139,13 +166,11 @@ function App() {
               <div className="app-container">
                 <Navbar onLogout={handleLogout} user={user} />
                 <main className="main-content">
-                  <AdminRoute>
-                    <AnimatedRoutes
-                      user={user}
-                      addHistoryItem={addHistoryItem}
-                      historyVersion={historyVersion}
-                    />
-                  </AdminRoute>
+                  <AnimatedRoutes
+                    user={user}
+                    addHistoryItem={addHistoryItem}
+                    historyVersion={historyVersion}
+                  />
                 </main>
               </div>
             )

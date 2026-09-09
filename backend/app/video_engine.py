@@ -130,7 +130,7 @@ def temporal_coherence_score(frames: list) -> dict:
 
         # Metrics
         frame_ssim_drops = [round(float(v),4) for v in ssims]
-        # Detect drops: count SSIM <0.85 or delta < -0.08 from median
+        # Detect drops: count SSIM <0.85 or delta <-0.08 from median
         median_ssim = float(np.median(ssims)) if ssims else 1.0
         drops = sum(1 for v in ssims if v < 0.85 or (median_ssim - v) > 0.08)
         min_ssim = float(np.min(ssims)) if ssims else 1.0
@@ -138,8 +138,12 @@ def temporal_coherence_score(frames: list) -> dict:
         # Jitter score: mean std of diff in ROI
         jitter_score = float(np.mean(jitter_diffs)) if jitter_diffs else 0.0
         luma_variance = float(np.std(np.diff(np.array(luma_means)))) if len(luma_means)>=2 else 0.0
-        # blockiness discontinuity: std of blockiness across frames (reset each frame -> high variance)
+        # blockiness variance: std across frames (localized splice/recompress -> high variance)
         block_var = float(np.std(blockiness_vals)) if blockiness_vals else 0.0
+        # blockiness MEAN: absolute level across all frames
+        # Uniform re-encode -> LOW variance (consistent) + HIGH mean (elevated DCT boundary energy)
+        # Single-pass encode -> LOW mean (~1.0). Threshold 1.8 calibrated on benchmark set.
+        mean_blockiness = float(np.mean(blockiness_vals)) if blockiness_vals else 1.0
 
         temporal_signals = []
         temporal_risk = 5
@@ -176,6 +180,24 @@ def temporal_coherence_score(frames: list) -> dict:
             temporal_risk += 8
             temporal_signals.append(f"Moderate blockiness variation ({block_var:.3f}).")
 
+        # ── NEW: Uniform re-encode detection via absolute blockiness mean ──────
+        # Low variance + elevated mean = every frame re-compressed at same quality.
+        # Threshold: mean > 1.8 AND variance < 0.12 (single-pass baseline ~1.0).
+        if mean_blockiness > 1.8 and block_var < 0.12:
+            temporal_risk += 30
+            temporal_signals.append(
+                f"Uniform re-encoding detected (mean frame blockiness {mean_blockiness:.2f} > 1.8, "
+                f"variance {block_var:.3f} < 0.12) — elevated DCT boundary energy is consistent "
+                "across all frames, indicating the video was re-compressed after initial recording."
+            )
+        elif mean_blockiness > 1.4:
+            temporal_risk += 12
+            temporal_signals.append(
+                f"Elevated frame blockiness (mean {mean_blockiness:.2f}) — moderate re-compression "
+                "artifacts detected; may indicate post-processing or format conversion."
+            )
+        # ─────────────────────────────────────────────────────────────────────
+
         if not has_ssim:
             temporal_signals.append("scikit-image not installed (pip install scikit-image) — SSIM approximated via MSE proxy.")
 
@@ -189,6 +211,7 @@ def temporal_coherence_score(frames: list) -> dict:
             "jitter_score": round(float(jitter_score), 3),
             "luma_variance": round(float(luma_variance), 3),
             "blockiness_variance": round(float(block_var), 4),
+            "mean_frame_blockiness": round(float(mean_blockiness), 4),
             "median_ssim": round(float(median_ssim), 4),
             "min_ssim": round(float(min_ssim), 4),
             "temporal_signals": temporal_signals,
@@ -402,6 +425,28 @@ def analyze_video(filename: str, file_bytes: bytes) -> dict:
     # 2. Evidence-based classification for localized tampering.
     # Only real frame analysis results are used, never filename heuristics.
     timeline_danger_count = sum(1 for item in timeline if item["status"] == "danger")
+
+    # ── Uniform re-encode detection (Phase 2 improvement) ───────────────────
+    # Old code only noted low variance as a "documented limitation".
+    # New: pull mean_frame_blockiness from temporal result and boost risk score
+    # when both conditions hold (elevated mean + low variance).
+    uniform_reencode_suspect = False
+    bvar = temporal.get("blockiness_variance", 0) if isinstance(temporal, dict) else 0
+    bmean = temporal.get("mean_frame_blockiness", 1.0) if isinstance(temporal, dict) else 1.0
+    if has_real_analysis and bmean > 1.8 and bvar < 0.12:
+        uniform_reencode_suspect = True
+        anomalies.append(
+            f"Uniform re-encoding detected (mean frame blockiness {bmean:.2f}, variance {bvar:.3f}) — "
+            "elevated DCT boundary energy consistent across all frames indicates re-compression "
+            "after initial recording. This is a known post-production forgery pattern."
+        )
+    elif has_real_analysis and bvar < 0.02:
+        # Old conservative fallback: still surface but don't boost risk
+        anomalies.append(
+            "Very low inter-frame blockiness variance — potential uniform re-encode "
+            "(ELA is relative to video's own baseline; absolute blockiness within normal range)."
+        )
+    # ─────────────────────────────────────────────────────────────────────────
 
     if has_real_analysis and timeline_danger_count >= 3:
         risk_score = min(95, 55 + timeline_danger_count * 4)

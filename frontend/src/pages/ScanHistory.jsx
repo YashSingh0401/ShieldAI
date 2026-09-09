@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Globe, FileImage, Film, Volume2, ShieldAlert, CheckCircle, Filter, RefreshCw } from 'lucide-react';
+import { Search, Globe, FileImage, Film, Volume2, ShieldAlert, CheckCircle, Filter, RefreshCw, ArrowLeft, ArrowRight } from 'lucide-react';
 import { api } from '../api/client.js';
 import './ScanHistory.css';
 
@@ -23,12 +23,17 @@ export default function ScanHistory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const fetchHistory = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = filterType !== 'all' ? { scan_type: filterType } : {};
+      if (searchTerm) params.q = searchTerm;
+      params._page = page;
+      params._limit = pageSize;
       const data = await api.get('/verify/history', params);
       setLogs(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -44,15 +49,7 @@ export default function ScanHistory() {
     fetchHistory();
   }, [filterType]);
 
-  const filteredLogs = logs.filter((log) => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      log.target.toLowerCase().includes(term) ||
-      log.scan_type.toLowerCase().includes(term) ||
-      log.status.toLowerCase().includes(term)
-    );
-  });
+  const filteredLogs = logs.length > 0 ? logs : [];
 
   const formatTimestamp = (ts) => {
     if (!ts) return '-';
@@ -136,6 +133,11 @@ export default function ScanHistory() {
                 ? 'Run your first security scan to start building your audit trail.'
                 : 'Try adjusting your search or filter criteria.'}
             </p>
+            {page > 1 && (
+              <button onClick={() => setPage(1)} className="btn btn-secondary btn-sm" style={{ marginTop: '8px' }}>
+                <RefreshCw size={12} /> First page
+              </button>
+            )}
           </div>
         ) : (
           <div className="history-table-container">
@@ -185,6 +187,42 @@ export default function ScanHistory() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+        {logs.length > 0 && (
+          <div className="pagination-controls">
+            <button
+              onClick={() => setPage(Math.max(1, page - 1))}
+              className="btn btn-text btn-sm"
+              style={{ marginRight: '4px' }}
+              disabled={page <= 1}
+            >
+              <ArrowLeft size={12} /> Prev
+            </button>
+            <span>
+              Page {page} of {Math.ceil(logs.length / pageSize) || 1}
+            </span>
+            <button
+              onClick={() => setPage(page + 1)}
+              className="btn btn-text btn-sm"
+              style={{ marginLeft: '4px' }}
+              disabled={page >= Math.ceil(logs.length / pageSize) || page <= 0}
+            >
+              Next <ArrowRight size={12} />
+            </button>
+            <select
+              className="form-input filter-select"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(parseInt(e.target.value));
+                setPage(1);
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
           </div>
         )}
       </div>

@@ -105,6 +105,28 @@ export default function ImageVerify({ onVerify }) {
     setLoadingStep(0);
     setResult(null);
 
+    // Optional real-time WebSocket progress tracking (non-blocking)
+    let ws = null;
+    try {
+      const wsUrl = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/^http/, 'ws');
+      ws = new WebSocket(`${wsUrl}/ws/scan-progress`);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'image', filename: file.name }));
+      };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.progress !== undefined) {
+            setLoadingStep(data.progress);
+          }
+        } catch {
+          // ignore
+        }
+      };
+    } catch {
+      // Graceful fallback to timer steps
+    }
+
     const steps = [
       setTimeout(() => setLoadingStep(1), 300),
       setTimeout(() => setLoadingStep(2), 650)
@@ -112,6 +134,7 @@ export default function ImageVerify({ onVerify }) {
 
     try {
       const data = await api.upload('/verify/image', file);
+      if (ws) ws.close();
       steps.forEach(clearTimeout);
       setLoadingStep(2);
       setResult(data);
@@ -130,6 +153,7 @@ export default function ImageVerify({ onVerify }) {
         });
       }
     } catch (err) {
+      if (ws) ws.close();
       steps.forEach(clearTimeout);
       console.error("Image verification failed:", err);
       toast.error(err.message || "Network error: Could not connect to the security backend.");

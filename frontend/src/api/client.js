@@ -1,7 +1,12 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 function getToken() {
-  return localStorage.getItem('shield_session_token');
+  const adminToken = localStorage.getItem('shield_admin_token');
+  const sessionToken = localStorage.getItem('shield_session_token');
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+    return adminToken || sessionToken;
+  }
+  return sessionToken || adminToken;
 }
 
 export function setToken(token) {
@@ -58,6 +63,7 @@ async function request(endpoint, options = {}) {
     let errorMessage = `Request failed with status ${res.status}`;
     let errorBody = null;
     let isQuotaExceeded = res.status === 402;
+    let isAuthError = res.status === 401;
     try {
       const errData = await res.json();
       errorBody = errData;
@@ -70,6 +76,9 @@ async function request(endpoint, options = {}) {
           }
           if (errData.detail.code === 'quota_exceeded') {
             isQuotaExceeded = true;
+          }
+          if (errData.detail.code === 'auth_error' || res.status === 401) {
+            isAuthError = true;
           }
         }
       }
@@ -87,6 +96,7 @@ async function request(endpoint, options = {}) {
     err.body = errorBody;
     err.detail = errorBody?.detail;
     err.isQuotaExceeded = isQuotaExceeded;
+    err.isAuthError = isAuthError;
     throw err;
   }
 
@@ -98,7 +108,13 @@ export const api = {
   get: (endpoint, params) => {
     let url = endpoint;
     if (params) {
-      const qs = new URLSearchParams(params).toString();
+      const cleanParams = {};
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined && v !== null && v !== '') {
+          cleanParams[k] = v;
+        }
+      }
+      const qs = new URLSearchParams(cleanParams).toString();
       if (qs) url += `?${qs}`;
     }
     return request(url, { method: 'GET' });

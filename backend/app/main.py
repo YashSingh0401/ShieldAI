@@ -33,8 +33,10 @@ _root = logging.getLogger()
 _root.handlers = [_handler]
 _root.setLevel(logging.INFO)
 logger = logging.getLogger("shieldAI")
+from pathlib import Path
 
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Header, WebSocket, WebSocketDisconnect, Request, Response
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -42,6 +44,11 @@ from slowapi.util import get_remote_address
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional, Any
+
+UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+from pydantic import BaseModel
 from PIL import Image
 
 from .config import (
@@ -304,6 +311,7 @@ def save_scan_history(
     status: str,
     user_email: Optional[str] = None,
     scan_payload: Optional[dict] = None,
+    raw_file_bytes: Optional[bytes] = None,
 ) -> int:
     payload_str = None
     if scan_payload:
@@ -324,6 +332,16 @@ def save_scan_history(
     db.add(entry)
     db.commit()
     db.refresh(entry)
+
+    if raw_file_bytes:
+        try:
+            safe_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', target or "file")
+            file_path = UPLOADS_DIR / f"{entry.id}_{safe_name}"
+            with open(file_path, "wb") as f:
+                f.write(raw_file_bytes)
+        except Exception as e:
+            logger.warning(f"Could not persist uploaded file to disk: {e}")
+
     return entry.id
 
 
@@ -560,7 +578,8 @@ async def verify_image(
 
         scan_id = save_scan_history(
             db, "image", file.filename, float(risk_score), status,
-            user_email=user["email"], scan_payload=result
+            user_email=user["email"], scan_payload=result,
+            raw_file_bytes=image_bytes,
         )
         result["scan_id"] = scan_id
         return result
@@ -696,7 +715,8 @@ async def verify_image_url(
 
     scan_id = save_scan_history(
         db, "image", url, float(risk_score), status,
-        user_email=user["email"], scan_payload=result
+        user_email=user["email"], scan_payload=result,
+        raw_file_bytes=image_bytes,
     )
     result["scan_id"] = scan_id
     return result
@@ -811,7 +831,8 @@ async def verify_video(
         status = "success" if result.get("is_clean") else "danger"
         scan_id = save_scan_history(
             db, "video", file.filename, float(result.get("risk_score", 0)), status,
-            user_email=user["email"], scan_payload=result
+            user_email=user["email"], scan_payload=result,
+            raw_file_bytes=file_bytes,
         )
         result["scan_id"] = scan_id
         return result
@@ -838,7 +859,8 @@ async def verify_audio(
         status = "success" if result.get("is_clean") else "danger"
         scan_id = save_scan_history(
             db, "audio", file.filename, float(result.get("risk_score", 0)), status,
-            user_email=user["email"], scan_payload=result
+            user_email=user["email"], scan_payload=result,
+            raw_file_bytes=file_bytes,
         )
         result["scan_id"] = scan_id
         return result
@@ -857,7 +879,8 @@ def get_scan_report(
     entry = db.query(ScanHistory).filter(ScanHistory.id == scan_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Scan audit record not found.")
-    if entry.user_email and entry.user_email.lower() != user["email"].lower():
+    is_admin = user["email"].lower() in ADMIN_EMAILS
+    if not is_admin and (entry.user_email and entry.user_email.lower() != user["email"].lower()):
         raise HTTPException(status_code=403, detail="Unauthorized: Access to this scan certificate is restricted.")
 
     payload = json.loads(entry.scan_payload) if entry.scan_payload else {}
@@ -876,6 +899,37 @@ def get_scan_report(
         headers={
             "Content-Disposition": f'attachment; filename="shieldAI_audit_certificate_{entry.id}.pdf"'
         },
+    )
+
+
+@app.get("/media/file/{scan_id}")
+def get_scan_file(
+    scan_id: int,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    entry = db.query(ScanHistory).filter(ScanHistory.id == scan_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Scan record not found")
+
+    is_admin = user["email"].lower() in ADMIN_EMAILS
+    if not is_admin and (entry.user_email and entry.user_email.lower() != user["email"].lower()):
+        raise HTTPException(status_code=403, detail="Forbidden: You cannot access this file")
+
+    safe_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', entry.target or "file")
+    file_path = UPLOADS_DIR / f"{entry.id}_{safe_name}"
+    if not file_path.exists():
+        matching = list(UPLOADS_DIR.glob(f"{entry.id}_*"))
+        if matching:
+            file_path = matching[0]
+        else:
+            raise HTTPException(status_code=404, detail="Uploaded file not found on disk")
+
+    media_type, _ = mimetypes.guess_type(file_path.name)
+    return FileResponse(
+        str(file_path),
+        media_type=media_type or "application/octet-stream",
+        filename=entry.target,
     )
 
 
@@ -1285,7 +1339,10 @@ def admin_list_users(
 
 
 class _AdminScanHistoryItem(ScanHistoryResponse):
-    user_email: str
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
+    scan_payload: Optional[Dict[str, Any]] = None
+    has_file: bool = False
     class Config:
         from_attributes = True
 
@@ -1316,6 +1373,7 @@ def admin_list_scan_history(
             ScanHistory.target.ilike(search)
             | ScanHistory.scan_type.ilike(search)
             | ScanHistory.status.ilike(search)
+            | ScanHistory.user_email.ilike(search)
         )
     if scan_type:
         query = query.filter(ScanHistory.scan_type == scan_type)
@@ -1330,7 +1388,17 @@ def admin_list_scan_history(
     )
     result = []
     for s in items:
-        u = db.query(User).filter(User.email == s.user_email).first()
+        u = db.query(User).filter(User.email == s.user_email).first() if s.user_email else None
+        payload_dict = None
+        if s.scan_payload:
+            try:
+                payload_dict = json.loads(s.scan_payload)
+            except Exception:
+                payload_dict = None
+
+        safe_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', s.target or "file")
+        has_file = (UPLOADS_DIR / f"{s.id}_{safe_name}").exists() or len(list(UPLOADS_DIR.glob(f"{s.id}_*"))) > 0
+
         result.append(
             _AdminScanHistoryItem(
                 id=s.id,
@@ -1340,7 +1408,9 @@ def admin_list_scan_history(
                 status=s.status,
                 timestamp=s.timestamp,
                 user_email=s.user_email,
-                user_name=(u.name or u.email.split("@")[0]) if u else "",
+                user_name=(u.name or u.email.split("@")[0]) if u else "Anonymous",
+                scan_payload=payload_dict,
+                has_file=has_file,
             )
         )
     return _AdminScanHistoryListResponse(items=result, total=total, limit=limit, offset=offset)

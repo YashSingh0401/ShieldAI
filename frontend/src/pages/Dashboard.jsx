@@ -96,6 +96,48 @@ export default function Dashboard({ historyVersion = 0 }) {
     time: formatTime(log.timestamp),
   }));
 
+  // ── Threat Trend: last 14 days grouped by day ───────────────────────
+  const trendData = (() => {
+    const days = 14;
+    const today = new Date();
+    const buckets = {};
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      buckets[key] = { date: key, total: 0, riskSum: 0, threats: 0 };
+    }
+    safeHistory.forEach(log => {
+      if (!log.timestamp) return;
+      const key = new Date(log.timestamp).toISOString().slice(0, 10);
+      if (buckets[key]) {
+        buckets[key].total += 1;
+        buckets[key].riskSum += (log.risk_score || 0);
+        if (log.status === 'danger' || log.risk_score >= 50) buckets[key].threats += 1;
+      }
+    });
+    return Object.values(buckets).map(b => ({
+      date: b.date,
+      avgRisk: b.total > 0 ? Math.round(b.riskSum / b.total) : 0,
+      total: b.total,
+      threats: b.threats,
+    }));
+  })();
+
+  const trendHasData = trendData.some(d => d.total > 0);
+
+  // SVG polyline helpers (100×30 viewBox, Y axis = risk 0..100 mapped to 30..0)
+  const W = 100, H = 30;
+  const toX = (i) => (i / (trendData.length - 1)) * W;
+  const toY = (v) => H - (v / 100) * H;
+  const points = trendData.map((d, i) => `${toX(i).toFixed(1)},${toY(d.avgRisk).toFixed(1)}`).join(' ');
+  const fillPoints = [
+    `0,${H}`,
+    ...trendData.map((d, i) => `${toX(i).toFixed(1)},${toY(d.avgRisk).toFixed(1)}`),
+    `${W},${H}`,
+  ].join(' ');
+
+
   return (
     <div className="dashboard-container">
       <header className="page-header animate-fade-in">
@@ -135,11 +177,86 @@ export default function Dashboard({ historyVersion = 0 }) {
       </div>
 
       <div className="dashboard-grid-layout">
-        
+
+        {/* ── Threat Trend chart ─────────────────────────────────────────────── */}
+        <div
+          ref={chartRef}
+          className={`glass-card trend-chart-card reveal-on-scroll ${chartVisible ? 'is-visible' : ''}`}
+        >
+          <div className="card-header">
+            <h3>Threat Trend
+              <span className="trend-badge">Last 14 Days</span>
+            </h3>
+            <span className="card-subtitle">Average risk score per day</span>
+          </div>
+
+          {trendHasData ? (
+            <div className="trend-chart-wrap">
+              <svg
+                viewBox={`0 0 ${W} ${H}`}
+                preserveAspectRatio="none"
+                className="trend-svg"
+                aria-label="Threat trend sparkline"
+              >
+                <defs>
+                  <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity="0.28" />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity="0.01" />
+                  </linearGradient>
+                </defs>
+                {/* Zero line */}
+                <line x1="0" y1={H} x2={W} y2={H} stroke="rgba(255,255,255,0.05)" strokeWidth="0.3" />
+                {/* Fill area */}
+                <polygon points={fillPoints} fill="url(#trendFill)" />
+                {/* Line */}
+                <polyline
+                  points={points}
+                  fill="none"
+                  stroke="#ef4444"
+                  strokeWidth="1.2"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                {/* Data dots */}
+                {trendData.map((d, i) => d.total > 0 && (
+                  <circle
+                    key={i}
+                    cx={toX(i).toFixed(1)}
+                    cy={toY(d.avgRisk).toFixed(1)}
+                    r="1.2"
+                    fill={d.threats > 0 ? '#ef4444' : '#22c55e'}
+                    stroke="rgba(0,0,0,0.5)"
+                    strokeWidth="0.4"
+                  />
+                ))}
+              </svg>
+              {/* X-axis labels: first / mid / last */}
+              <div className="trend-x-labels">
+                <span>{trendData[0]?.date?.slice(5)}</span>
+                <span>{trendData[6]?.date?.slice(5)}</span>
+                <span>{trendData[13]?.date?.slice(5)}</span>
+              </div>
+              {/* Legend */}
+              <div className="trend-legend">
+                <span className="trend-leg trend-leg-threat">Threats</span>
+                <span className="trend-leg trend-leg-safe">Clean</span>
+                <span className="trend-total">{totalScans} total scans in period</span>
+              </div>
+            </div>
+          ) : (
+            <div className="trend-empty">
+              <Activity size={36} className="trend-empty-icon" />
+              <p>No scan data yet. Run your first scan to populate the trend chart.</p>
+            </div>
+          )}
+        </div>
+        {/* end trend chart */}
+
         <div
           ref={diagRef}
           className={`glass-card sys-diagnostics-card reveal-on-scroll ${diagVisible ? 'is-visible' : ''}`}
         >
+
           <div className="card-header">
             <h3>System Status</h3>
             <span className="card-subtitle">Active validation services</span>

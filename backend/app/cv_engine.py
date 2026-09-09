@@ -259,6 +259,12 @@ def prnu_fingerprint_score(image_bytes: bytes) -> dict:
         import pywt
 
         img = Image.open(io.BytesIO(image_bytes)).convert("L")
+        # Cap analysis resolution to 1280px for sub-second analysis speed
+        if max(img.width, img.height) > 1280:
+            scale_factor = 1280.0 / max(img.width, img.height)
+            new_w, new_h = max(32, int(img.width * scale_factor)), max(32, int(img.height * scale_factor))
+            img = img.resize((new_w, new_h), Image.BILINEAR)
+
         arr = np.asarray(img, dtype=np.float32)
         h, w = arr.shape
         if h < 32 or w < 32:
@@ -276,15 +282,18 @@ def prnu_fingerprint_score(image_bytes: bytes) -> dict:
         hh_col_var = float(np.var(np.mean(np.abs(cD), axis=0)))
         spatial_anisotropy = hh_row_var / (hh_col_var + 1e-9)
 
-        # Step 3: DCT histogram entropy
-        blocks = []
-        for i in range(0, h - 7, 8):
-            for j in range(0, w - 7, 8):
-                block = arr[i:i+8, j:j+8] - 128.0
-                blocks.append(block.flatten())
-        if blocks:
-            all_ac = np.concatenate(blocks)
-            hist, _ = np.histogram(all_ac, bins=64, range=(-128, 128))
+        # Step 3: Fast vectorized DCT histogram entropy
+        h_blocks = h // 8
+        w_blocks = w // 8
+        if h_blocks > 0 and w_blocks > 0:
+            blocks_arr = (
+                arr[: h_blocks * 8, : w_blocks * 8]
+                .reshape(h_blocks, 8, w_blocks, 8)
+                .swapaxes(1, 2)
+                .reshape(-1, 64)
+                - 128.0
+            )
+            hist, _ = np.histogram(blocks_arr, bins=64, range=(-128, 128))
             hist_norm = hist / (hist.sum() + 1e-9)
             hist_entropy = float(-np.sum(hist_norm[hist_norm > 0] * np.log2(hist_norm[hist_norm > 0])))
         else:

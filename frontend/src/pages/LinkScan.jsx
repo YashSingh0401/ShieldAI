@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, ShieldAlert, Shield, Globe, Search, RefreshCw } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Shield, Globe, Search, RefreshCw, List, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../api/client.js';
 import CertificateModal from '../components/CertificateModal';
@@ -10,6 +10,10 @@ export default function LinkScan({ onScan }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [showCert, setShowCert] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchResults, setBatchResults] = useState([]);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(0);
 
   const exportJSON = () => {
     if (!result) return;
@@ -63,6 +67,53 @@ export default function LinkScan({ onScan }) {
     calculateRisk(urlInput);
   };
 
+  // ── Batch scan ────────────────────────────────────────────────────────────
+  const handleBatchScan = async () => {
+    const urls = urlInput
+      .split('\n')
+      .map(u => u.trim())
+      .filter(u => u.length > 0)
+      .slice(0, 10); // max 10 per batch
+    if (urls.length === 0) {
+      toast.error('Enter at least one URL (one per line).');
+      return;
+    }
+    setBatchLoading(true);
+    setBatchResults([]);
+    setBatchProgress(0);
+    const results = [];
+    for (let i = 0; i < urls.length; i++) {
+      try {
+        const data = await api.get('/verify/url', { url: urls[i] });
+        results.push({ url: urls[i], ...data, error: null });
+      } catch (err) {
+        results.push({ url: urls[i], risk_score: 0, risk_level: 'Error', levelClass: 'error', error: err.message || 'Scan failed' });
+      }
+      setBatchProgress(Math.round(((i + 1) / urls.length) * 100));
+    }
+    setBatchResults(results);
+    setBatchLoading(false);
+    toast.success(`Batch scan complete: ${results.filter(r => !r.error).length}/${urls.length} scanned.`);
+  };
+
+  const exportBatchCSV = () => {
+    if (!batchResults.length) return;
+    const header = ['URL', 'Risk Score', 'Risk Level', 'Domain', 'Error'];
+    const rows = batchResults.map(r => [
+      `"${r.url}"`,
+      r.risk_score ?? '',
+      `"${r.risk_level ?? ''}"`,
+      `"${r.domain ?? ''}"`,
+      `"${r.error ?? ''}"`,
+    ]);
+    const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = 'shieldAI_batch_url_scan.csv';
+    a.click();
+    toast.success('CSV exported!');
+  };
+
   const loadSample = (sampleUrl) => {
     setUrlInput(sampleUrl);
     calculateRisk(sampleUrl);
@@ -80,7 +131,26 @@ export default function LinkScan({ onScan }) {
         <p className="page-subtitle">Inspect URLs in real-time for phishing patterns, high character entropy, and domain typosquatting.</p>
       </header>
 
+      {/* Mode Toggle */}
+      <div className="batch-mode-toggle animate-fade-in">
+        <button
+          id="btn-single-mode"
+          className={`btn btn-sm ${!batchMode ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => { setBatchMode(false); setBatchResults([]); }}
+        >
+          <Search size={14} /> Single URL
+        </button>
+        <button
+          id="btn-batch-mode"
+          className={`btn btn-sm ${batchMode ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => { setBatchMode(true); setResult(null); }}
+        >
+          <List size={14} /> Batch Scan (up to 10)
+        </button>
+      </div>
+
       {/* Preloaded samples */}
+      {!batchMode && (
       <div className="samples-panel animate-fade-in cascade-1">
         <span className="samples-label">Test Sample Scans:</span>
         <button onClick={() => loadSample('https://github.com/microsoft/vscode')} className="btn btn-secondary btn-sm">
@@ -93,11 +163,83 @@ export default function LinkScan({ onScan }) {
           Obfuscated XYZ Phish
         </button>
       </div>
+      )}
 
       <div className="scan-layout">
         
-        {/* Search Panel */}
+        {/* Search / Batch Panel */}
         <div className="glass-card scan-panel animate-fade-in cascade-2">
+
+          {batchMode ? (
+            <div className="batch-input-area">
+              <label className="batch-label">
+                <List size={16} /> Paste up to 10 URLs, one per line
+              </label>
+              <textarea
+                id="batch-url-input"
+                className="form-input batch-textarea"
+                value={urlInput}
+                onChange={e => setUrlInput(e.target.value)}
+                placeholder={"https://example.com\nhttps://suspicious-bank-login.xyz\nhttp://paypal-kyc-verify.tk"}
+                rows={6}
+              />
+              <button
+                id="btn-run-batch"
+                className="btn btn-primary scan-submit"
+                onClick={handleBatchScan}
+                disabled={batchLoading}
+              >
+                {batchLoading ? <RefreshCw size={16} className="btn-spinner" /> : <List size={16} />}
+                <span>{batchLoading ? `Scanning… ${batchProgress}%` : 'Run Batch Scan'}</span>
+              </button>
+
+              {batchLoading && (
+                <div className="batch-progress-bar">
+                  <div className="batch-progress-fill" style={{ width: `${batchProgress}%` }} />
+                </div>
+              )}
+
+              {batchResults.length > 0 && !batchLoading && (
+                <div className="batch-results">
+                  <div className="batch-results-header">
+                    <h4>{batchResults.length} URL(s) Scanned</h4>
+                    <button className="btn btn-secondary btn-sm" onClick={exportBatchCSV}>
+                      <Download size={14} /> Export CSV
+                    </button>
+                  </div>
+                  <table className="batch-table">
+                    <thead>
+                      <tr>
+                        <th>URL</th>
+                        <th>Score</th>
+                        <th>Risk Level</th>
+                        <th>Domain Age</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {batchResults.map((r, i) => (
+                        <tr key={i} className={`batch-row batch-row-${r.levelClass || 'error'}`}>
+                          <td className="batch-url-cell" title={r.url}>{r.url.length > 40 ? r.url.slice(0, 40) + '…' : r.url}</td>
+                          <td className="batch-score-cell">{r.error ? '—' : r.risk_score}</td>
+                          <td><span className={`batch-badge batch-badge-${r.levelClass || 'error'}`}>{r.error ? 'Error' : r.risk_level}</span></td>
+                          <td>{r.whois_age_days != null ? `${r.whois_age_days}d` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {!batchLoading && batchResults.length === 0 && (
+                <div className="scan-instructions">
+                  <List size={40} className="inst-icon" />
+                  <h4>Batch Mode Active</h4>
+                  <p>Paste multiple URLs (one per line) to check up to 10 links in one shot. Results include risk scores, WHOIS age, and CSV export.</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
           <form onSubmit={handleScan} className="scan-form">
             <div className="search-wrapper">
               <Globe size={20} className="input-globe-icon" />
@@ -131,6 +273,10 @@ export default function LinkScan({ onScan }) {
               <p>The auditor will evaluate protocol integrity, host depth, low-cost registration signatures, and malicious brand associations instantly.</p>
             </div>
           )}
+            </>
+          )}
+
+
 
           {/* Results Details Column (if scanned) */}
           {result && !loading && (

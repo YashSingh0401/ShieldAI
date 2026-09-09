@@ -114,12 +114,49 @@ def _pcm_stats(samples: np.ndarray) -> dict:
         "silence_ratio": float(np.mean(np.abs(samples) < 200)),
         "spectral_flatness": spectral_flatness,
         "dom_cv": dom_cv,
+        # ── Phase 3: High-band spectral flatness (8-16 kHz) ───────────────────
+        # MP3/AAC encoding either hard-cuts or smears high frequencies.
+        # Natural speech:  SFM_highband ~0.15-0.45 (mixed noise + harmonics)
+        # Hard MP3 cutoff: SFM_highband < 0.05 (near-silent flat floor)
+        # MP3 noise floor: SFM_highband > 0.70 (noise-like smear above cutoff)
+        # Single measure catches both patterns.
+        "sfm_highband": _sfm_highband(samples, sr=16000),
     }
 
 
 # ─────────────────────────────────────────────────────────────────
 # ENGINE C — AASIST-Inspired Voice Clone & Vocoder Detector (pure DSP)
 # ─────────────────────────────────────────────────────────────────
+
+
+def _sfm_highband(samples: np.ndarray, sr: int = 16000) -> float:
+    """
+    Spectral flatness measure for the high-frequency band (8 kHz – Nyquist).
+
+    MP3/AAC re-encoding leaves two characteristic fingerprints:
+      - Hard cutoff variant:  energy above cutoff freq → near-zero SFM (silent floor).
+      - Noise-floor variant:  smeared quantisation noise → SFM close to 1.0 (noise-like).
+    Natural speech sits in the middle (~0.15–0.45).
+
+    Returns a float in [0, 1]. Values < 0.05 or > 0.70 are anomalous.
+    Returns 0.25 (neutral) if the signal is too short or SR too low.
+    """
+    try:
+        n = samples.size
+        if n < 2048 or sr < 16000:
+            return 0.25  # neutral — not enough data or too low SR for 8 kHz band
+        # Use the full signal for FFT stability
+        mag = np.abs(np.fft.rfft(samples.astype(np.float64))) + 1e-12
+        freqs = np.fft.rfftfreq(n, d=1.0 / sr)
+        # Isolate 8 kHz – Nyquist
+        mask = freqs >= 8000
+        if mask.sum() < 16:
+            return 0.25  # band too narrow — neutral
+        band = mag[mask]
+        sfm = float(np.exp(np.mean(np.log(band))) / (np.mean(band) + 1e-12))
+        return float(np.clip(sfm, 0.0, 1.0))
+    except Exception:
+        return 0.25
 
 def detect_voice_clone_advanced(samples: np.ndarray, sample_rate: int = 16000) -> dict:
     """
@@ -416,6 +453,32 @@ def analyze_audio(filename: str, file_bytes: bytes) -> dict:
         risk += 20
         anomalies.append(f"Non-standard sample rate ({sample_rate} Hz) — atypical for consumer recordings.")
         compression_warnings.append(f"Unusual sample rate: {sample_rate} Hz")
+
+    # ── Phase 3: High-band SFM — MP3/AAC re-encode detection ─────────────────
+    sfm_hb = stats.get("sfm_highband", 0.25)
+    if sfm_hb < 0.05:
+        risk += 25
+        anomalies.append(
+            f"High-frequency band cutoff detected (SFM_highband={sfm_hb:.3f} < 0.05) — "
+            "characteristic hard cutoff consistent with MP3/AAC lossy re-encoding. "
+            "Original high-frequency content has been discarded and replaced with a noise floor."
+        )
+        compression_warnings.append("MP3/AAC high-frequency cutoff detected (SFM_highband < 0.05)")
+    elif sfm_hb > 0.70:
+        risk += 20
+        anomalies.append(
+            f"High-frequency noise smear detected (SFM_highband={sfm_hb:.3f} > 0.70) — "
+            "quantisation noise above the encoding cutoff frequency, consistent with "
+            "lossy re-compression (MP3/AAC) applied to a previously compressed source."
+        )
+        compression_warnings.append("High-band quantisation noise (SFM_highband > 0.70)")
+    elif sfm_hb < 0.10:
+        risk += 12
+        anomalies.append(
+            f"Slightly suppressed high-frequency content (SFM_highband={sfm_hb:.3f}) — "
+            "borderline lossy compression artifact."
+        )
+    # ── end Phase 3 ───────────────────────────────────────────────────────────
 
     if file_size_kb > 10000:
         compression_warnings.append(f"Large file ({file_size_kb:.0f} KB) — may contain hidden data streams.")

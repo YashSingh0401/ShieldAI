@@ -143,6 +143,16 @@ _HOMOGLYPH_MAP = {
 
 _BAD_TLDS_PHISH = {".tk",".ml",".cf",".gq",".xyz",".top",".club",".info",".online",".buzz",".work",".cc",".apk",".zip",".mov"}
 
+_BRAND_LIST = [
+    "paypal","google","amazon","apple","microsoft","netflix","facebook","instagram",
+    "binance","coinbase","paytm","sbi","hdfc","icici","bank","fedex","chase","wells fargo",
+    "hsbc","barclays","santander","metamask","tron","ledger","whatsapp","telegram",
+    "linkedin","twitter","spotify","youtube","adobe","dropbox","icloud","outlook",
+    "office365","docusign","ups","dhl","steam","epic","roblox","discord","github",
+    "gitlab","bitbucket","stripe","payoneer","wise","revolut","coinbase","kraken",
+    "bybit","okx","tether","ethereum","polygon","solana","airbnb","booking",
+]
+
 def semantic_phish_score(url: str, domain: str = None) -> dict:
     """
     PhishLLM Semantic URL Analyzer — pure DSP, no LLM needed.
@@ -451,6 +461,75 @@ async def ct_log_threat_intel(domain: str) -> dict:
     }
 
 
+def _whois_domain_age(domain: str) -> dict:
+    """
+    Looks up WHOIS registration date to detect newly-created phishing domains.
+
+    Phishing domains are typically registered days-to-weeks before use. A domain
+    < 30 days old that also triggers brand/TLD signals is near-certain phishing.
+
+    Returns:
+        age_days (int|None): Days since domain registration. None = lookup failed.
+        registrar (str|None): Registrar name.
+        whois_flags (list[str]): Human-readable signals.
+
+    Skipped transparently in pytest (PYTEST_CURRENT_TEST env set) to keep tests
+    fast and offline-deterministic — no risk change in that path.
+    """
+    result = {"age_days": None, "registrar": None, "whois_flags": []}
+
+    # Skip during automated testing
+    if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("PYTEST_RUNNING"):
+        return result
+
+    try:
+        import whois  # python-whois package
+        from datetime import datetime, timezone
+
+        data = whois.whois(domain)
+        if not data:
+            result["whois_flags"].append("WHOIS lookup returned no data.")
+            return result
+
+        creation = data.get("creation_date")
+        if isinstance(creation, list):
+            creation = creation[0]
+
+        if creation is None:
+            result["whois_flags"].append("WHOIS: No creation date found — may be privacy-protected.")
+            return result
+
+        # Normalize to UTC-aware datetime
+        if hasattr(creation, "tzinfo") and creation.tzinfo is None:
+            creation = creation.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        age_days = max(0, (now - creation).days)
+        result["age_days"] = age_days
+        result["registrar"] = str(data.get("registrar", "") or "")[:80]
+
+        if age_days < 30:
+            result["whois_flags"].append(
+                f"WHOIS: Domain registered {age_days} day(s) ago — extremely new. "
+                "Phishing domains are typically registered days before deployment."
+            )
+        elif age_days < 180:
+            result["whois_flags"].append(
+                f"WHOIS: Domain registered {age_days} day(s) ago — less than 6 months old. "
+                "Young domains combined with brand spoofing are a high-confidence phishing indicator."
+            )
+        else:
+            result["whois_flags"].append(
+                f"WHOIS: Domain registered {age_days} day(s) ago — established domain, no age-based risk."
+            )
+
+    except ImportError:
+        result["whois_flags"].append("WHOIS: python-whois not installed (pip install python-whois) — domain age check skipped.")
+    except Exception as e:
+        result["whois_flags"].append(f"WHOIS lookup failed ({type(e).__name__}) — no age-based risk applied.")
+
+    return result
+
+
 def analyze_url(url: str, check_live: bool = True) -> dict:
     """
     Evaluates lexical patterns, TLD safety, domain sub-depths, entropy metrics,
@@ -500,9 +579,8 @@ def analyze_url(url: str, check_live: bool = True) -> dict:
         })
         
     # 3. Brand Typosquatting / Spoofing checks
-    brands = ['paytm', 'paypal', 'google', 'netflix', 'amazon', 'facebook', 'bank', 'sbi', 'hdfc', 'icici', 'fedex']
     brand_found = None
-    for b in brands:
+    for b in _BRAND_LIST:
         if b in domain:
             brand_found = b
             break
@@ -585,8 +663,35 @@ def analyze_url(url: str, check_live: bool = True) -> dict:
                 "type": "danger",
                 "text": f"VirusTotal Threat Alert: Flagged as malicious by {vt_result['malicious']} security vendors."
             })
-        
-    # Boundary constraints
+
+    # 9. WHOIS Domain Age — Phase 4 improvement
+    # Newly-registered domains are the #1 infrastructure signal for phishing.
+    # Lexical + age = very high confidence verdict.
+    whois_info = _whois_domain_age(domain)
+    whois_age = whois_info["age_days"]
+    if whois_age is not None:
+        if whois_age < 30:
+            score += 40
+            flags.append({
+                "type": "danger",
+                "text": (
+                    f"Domain Age Alert: Registered only {whois_age} day(s) ago via "
+                    f"{whois_info['registrar'] or 'unknown registrar'}. "
+                    "Phishing campaigns typically register domains days before deployment."
+                )
+            })
+        elif whois_age < 180:
+            score += 20
+            flags.append({
+                "type": "warning",
+                "text": (
+                    f"Young Domain: Registered {whois_age} day(s) ago "
+                    f"({whois_info['registrar'] or 'unknown registrar'}). "
+                    "Combined with other signals, a domain younger than 6 months is a strong phishing indicator."
+                )
+            })
+    # end Phase 4
+
     if score == 0:
         score = 5
     if score > 98:
@@ -616,4 +721,5 @@ def analyze_url(url: str, check_live: bool = True) -> dict:
         "levelClass": level_class,
         "flags": flags,
         "live_meta": live_meta,
+        "whois_age_days": whois_info.get("age_days") if "whois_info" in dir() else None,
     }

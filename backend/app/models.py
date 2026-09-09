@@ -20,6 +20,8 @@ class ScamReport(Base):
     scam_content = Column(String, index=True, nullable=True)
     description = Column(Text, nullable=False)
     location = Column(String, index=True, nullable=True)
+    # Optional: track who submitted (allows per-user moderation)
+    reporter_email = Column(String, ForeignKey("users.email", ondelete="SET NULL"), nullable=True, index=True)
     upvotes = Column(Integer, default=0, nullable=False)
     is_hidden = Column(Boolean, nullable=False, default=False, server_default="0")
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
@@ -50,6 +52,7 @@ class ScanHistory(Base):
     target = Column(String, nullable=False)
     risk_score = Column(Float, nullable=False)
     status = Column(String, nullable=False)
-    user_email = Column(String, index=True, nullable=True)
+    # FK to users.email — SET NULL on user deletion so history is preserved
+    user_email = Column(String, ForeignKey("users.email", ondelete="SET NULL"), index=True, nullable=True)
     scan_payload = Column(Text, nullable=True)
     timestamp = Column(DateTime, server_default=func.now(), nullable=False)

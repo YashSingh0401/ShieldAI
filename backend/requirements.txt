@@ -19,5 +19,6 @@ PyWavelets>=1.4.0
 scikit-image>=0.21.0
 tldextract>=4.0.0
 redis>=5.0.0
+python-whois>=0.9.4
 alembic>=1.13.0
 # Heavy optional (install separately): opencv-python-headless, invisible-watermark, open-clip-torch, torch
