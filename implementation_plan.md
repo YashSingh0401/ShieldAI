@@ -1,88 +1,54 @@
-# Implementation Plan: shieldAI Core Feature Overhauls
+# Implementation Plan — Fix `application/octet-stream` Rejection on `/verify/image`
 
-We will implement 4 major full-stack upgrades to make **shieldAI** extremely premium:
-1. **Crowdsourced Comments Database Layer**: Add comment tables and endpoints so users can discuss active fraud cards.
-2. **Real Video Frame ELA Analysis**: Install `imageio` and perform actual frame extraction and ELA calculations on uploaded MP4/WebM videos.
-3. **Audit Log Export Controls**: Add PDF printing and JSON data export controls for verified assets.
-4. **Production Authentication Setup**: Setup `.env.example` configurations for Firebase/Google OAuth.
+> Detailed plan persisted at `.opencode/plans/fix-octet-stream-image-validation.md` (canonical). This file is the `implementation_plan.md` entry-point required by OpenCode.
 
----
+## Issue Summary
 
-## Proposed Changes
+Upload / drag-and-drop / clipboard paste on `/verify-image` fails with:
 
-### 1. Database & Comments Layer (Python Backend)
+`400 Unsupported file type: application/octet-stream. Allowed: {'image/jpeg', 'image/png', ...}`
 
-#### [MODIFY] [backend/requirements.txt](file:///c:/Users/ShieldAI/backend/requirements.txt)
-* Append `imageio` and `imageio-ffmpeg` to support video frame demuxing and extraction.
+Browser sends `application/octet-stream` when `File.name` lacks extension (clipboard `blob`, `image`, temp files, archive-manager drags). Backend compared `image/*` whitelist against client-supplied `file.content_type` without inspecting bytes.
 
-#### [MODIFY] [backend/app/models.py](file:///c:/Users/ShieldAI/backend/app/models.py)
-* Add `ScamComment` database table model:
-  - `id` (Integer, PK)
-  - `report_id` (Integer, FK to `scam_reports.id`)
-  - `author` (String)
-  - `content` (Text)
-  - `created_at` (DateTime, default=now)
+**Resolution (spec):** Server-side magic-byte + Pillow inspection, not trusting `Content-Type`.
 
-#### [MODIFY] [backend/app/schemas.py](file:///c:/Users/ShieldAI/backend/app/schemas.py)
-* Add `ScamCommentCreate` and `ScamCommentResponse` Pydantic schemas.
+## Already Implemented (commit `96f6c1a`)
 
-#### [MODIFY] [backend/app/main.py](file:///c:/Users/ShieldAI/backend/app/main.py)
-* Initialize relationships.
-* Implement endpoints:
-  - `GET /reports/{report_id}/comments`: Retrieves discussions sorted by date.
-  - `POST /reports/{report_id}/comments`: Submits a new comment response.
+### `backend/app/main.py:185-203` — `_is_magic_image(data: bytes)`
+Manual signatures (no `python-magic` dep): JPEG `FF D8 FF`, PNG `89 50 4E…`, GIF `GIF8`, WebP `RIFF…WEBP`, TIFF `II*` / `MM *`, BMP `BM`, ICO `00 00 01 00`.
 
----
+### `backend/app/main.py:206-285` — `validate_upload` 4-tier rewrite
 
-### 2. Real Video Frame ELA Engine
+* Tier 1 Normalize: `content_type = (file.content_type or "").split(";")[0].lower()`; if `""` or `application/octet-stream` then `mimetypes.guess_type(filename)` fallback.
+* Tier 2 Fast path: `if content_type in {t.lower() for t in allowed_types}: valid`.
+* Tier 3 Content sniff: read FULL `data = file.file.read()` (not 4KB head), `seek(0)` before/after. For image set (`"image/jpeg" in allowed_types`): `magic_ok = _is_magic_image(data)` OR `Pillow verify()` on full bytes. Video: `ftyp` / `1A 45 DF A3` / `AVI ` or ext. Audio: `ID3` / `RIFF` / `OggS` / `fLaC` / MP3 sync or ext.
+* Tier 4 Size: `MAX_BYTES = max_mb*1024*1024`, `seek(0,2)/tell()` then 400 on empty/too large.
 
-#### [MODIFY] [backend/app/video_engine.py](file:///c:/Users/ShieldAI/backend/app/video_engine.py)
-* Replace mock metadata with dynamic `imageio.get_reader` stream demuxing.
-* Extract 10-20 frames distributed evenly across the video timeline.
-* Run ELA (JPEG compression differences) on each frame using the Pillow CV engine.
-* Map these computed differences to the 20 timeline blocks and construct a real anomaly summary.
+### `backend/app/config.py:25-28` — No whitelist change needed
+`ALLOWED_IMAGE_TYPES` already covers jpeg/png/webp/tiff/bmp/gif/avif/heic; magic+Pillow handles aliases.
 
----
+### `backend/test_api.py:126-234` — 6 new tests (all passing)
+`_make_png_bytes`, `_make_jpeg_bytes`, `_make_webp_bytes` + `_mock_cv_engine` fixtures; asserts octet-stream+valid magic →200, octet-stream+`b"hello"` →400.
 
-### 3. Frontend Comments & Discussion Board
+## Verified
 
-#### [MODIFY] [frontend/src/components/ReportCard.jsx](file:///c:/Users/ShieldAI/frontend/src/components/ReportCard.jsx)
-* Add a collapsible "Discussion Board" panel.
-* Fetch comments from `/reports/{id}/comments` when expanded.
-* Add a form to submit comments, refreshing the local thread on success.
+```bash
+pytest backend/test_api.py -k "octet or verify_image"  # 9 passed
+pytest backend/                                         # 56 passed
+```
 
----
+## Files
 
-### 4. Audit Log Export Controls
+* `[MODIFIED] backend/app/main.py:185-285`
+* `[VERIFIED] backend/app/config.py:25-34`
+* `[MODIFIED] backend/test_api.py:126-234`
+* `[NO CHANGE] frontend/src/pages/ImageVerify.jsx`
 
-#### [MODIFY] [frontend/src/pages/ImageVerify.jsx](file:///c:/Users/ShieldAI/frontend/src/pages/ImageVerify.jsx), [LinkScan.jsx](file:///c:/Users/ShieldAI/frontend/src/pages/LinkScan.jsx), [VideoVerify.jsx](file:///c:/Users/ShieldAI/frontend/src/pages/VideoVerify.jsx)
-* Add "Export Report" button groups to the results console.
-* "Export JSON": Downloads a formatted JSON report containing risk ratings, signatures, and EXIF parameters.
-* "Export PDF Certificate": Triggers window print frames styled specifically as a security scan certificate.
+## Risks & Follow-ups
+
+* Audio still whitelists `application/octet-stream` at `main.py:821` — should be removed to rely on sniffing (P1 hardening).
+* Tier3 reads full file before size check — reorder to `seek/tell` first for DoS hardening (P2).
+* Plan details, alternatives (`python-magic` rejected, pure whitelist rejected), and edge cases in canonical plan file.
 
 ---
-
-### 5. Configurable Auth Templates
-
-#### [NEW] [backend/.env.example](file:///c:/Users/ShieldAI/backend/.env.example)
-* Setup template env keys for database URLs and Google OAuth client secrets.
-
-#### [NEW] [frontend/.env.example](file:///c:/Users/ShieldAI/frontend/.env.example)
-* Setup template keys for Vite backend host mappings and Firebase configurations.
-
----
-
-## Verification Plan
-
-### Automated Tests
-1. **Database Relations Test**:
-   Modify `backend/test_api.py` to assert commenting and comment retrieval operations work correctly.
-2. **Build Validation**:
-   Validate code integration compilation:
-   ```bash
-   npm run build
-   ```
-
-### Manual Verification
-1. Upload a video file, verify that `imageio` runs frame ELA calculations, and check if the timeline flags compression artifacts.
-2. Open a scam report, submit a comment, and ensure it displays instantly under the target card.
+*Canonical plan: `.opencode/plans/fix-octet-stream-image-validation.md`*
