@@ -12,6 +12,8 @@ if DATABASE_URL.startswith("postgres://"):
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET and (os.getenv("PYTEST_RUNNING") or os.getenv("CI") or os.getenv("TESTING") or "pytest" in os.getenv("_", "")):
+    JWT_SECRET = "test-jwt-secret-key-32-characters-long"
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24
 MAX_UPLOAD_SIZE_MB = 50
